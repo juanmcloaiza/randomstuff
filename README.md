@@ -1,1 +1,1 @@
-# First commit is a simple class that calculates the total weight of a tree.
+# Repo to put everything that I don't know where else to put.
