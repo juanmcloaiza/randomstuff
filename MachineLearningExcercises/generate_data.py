@@ -3,7 +3,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-N = 100 # number of points per class
+N = 100 # number of points *per class*
 D = 2 # dimensionality
 K = 3 # number of classes
 
