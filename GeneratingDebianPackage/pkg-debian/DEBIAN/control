@@ -1,0 +1,10 @@
+Package: HelloFromQtWorld
+Version: 0.0.1
+Architecture: all
+Essential: no
+Section: none
+Priority: optional
+Depends: hello
+Maintainer: Juan
+Installed-Size: 96
+Description: Hello World, Qt style

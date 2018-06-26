@@ -1,0 +1,7 @@
+#!/bin/sh
+echo "The program has been succesfully installed"
+echo "Some dummy files are being created..."
+mkdir -p /usr/lib/HelloFromQtWorld
+touch /usr/lib/HelloFromQtWorld/a.dummy
+touch /usr/lib/HelloFromQtWorld/b.dummy
+touch /usr/lib/HelloFromQtWorld/c.dummy

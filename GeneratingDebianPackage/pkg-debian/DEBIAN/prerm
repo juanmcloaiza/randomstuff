@@ -1,0 +1,5 @@
+#!/bin/sh
+echo "Removing the dummy files created during installation"
+if [ "$1" = "remove" ]; then
+rm -rf /usr/lib/HelloFromQtWorld/
+fi
