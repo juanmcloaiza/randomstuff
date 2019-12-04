@@ -1,9 +1,9 @@
-import numpy
+import numpy as np
 import bornagain as ba
 from bornagain import deg, angstrom, nm, nm2, kvector_t
 
 
-def get_sample(height):
+def get_sample(height=50):
     # Defining Materials
     material_1 = ba.MaterialBySLD("example10_Air", 0.0, 0.0)
     material_2 = ba.MaterialBySLD("example10_Particle", 108.29e-6, 0.0)
@@ -59,22 +59,25 @@ def get_sample(height):
     return multiLayer_1
 
 
-def get_simulation(alpha_i):
-    spherical_detector = True
+def get_simulation(alpha_i=0.15):
+    spherical_detector = False
+    simulation = ba.GISASSimulation()
+    simulation.setBeamParameters(0.1*nm, alpha_i*deg, 0.0*deg)
+    simulation.setBeamIntensity(1.0e+08)
+
+    distr_1 = ba.DistributionGaussian(0.1*nm, 0.01*nm)
+    simulation.addParameterDistribution("*/Beam/Wavelength", distr_1, 25, 3.0, ba.RealLimits.positive())
+    simulation.getOptions().setMonteCarloIntegration(True, 50)
     if spherical_detector:
-        simulation = ba.GISASSimulation()
         simulation.setDetectorParameters(500, -1.0*deg, 1.0*deg, 500, 0.0*deg, 2.0*deg)
-
-        simulation.setBeamParameters(0.1*nm, alpha_i*deg, 0.0*deg)
-        simulation.setBeamIntensity(1.0e+08)
     else:
-        simulation = ba.GISASSimulation()
-        detector = ba.RectangularDetector(500, 500.0, 500, 500.0)
-        detector.setPerpendicularToDirectBeam(7000.0, 250.0, -5.0)
+        side_mm = 150.0
+        side_bins = 200
+        distance_to_detector_mm = 7000.0
+        direct_beam_vertical_mm = - distance_to_detector_mm * np.tan(alpha_i*np.pi/180.0)
+        detector = ba.RectangularDetector(side_bins, side_mm, side_bins, side_mm)
+        detector.setPerpendicularToDirectBeam(distance_to_detector_mm, side_mm/2.0, direct_beam_vertical_mm)
         simulation.setDetector(detector)
-
-        simulation.setBeamParameters(0.1*nm, alpha_i*deg, 0.0*deg)
-        simulation.setBeamIntensity(1.0e+08)
     return simulation
 
 
@@ -88,9 +91,11 @@ def run_simulation(alpha_i, height):
 
 if __name__ == '__main__':
     alpha_height_arr = []
-    for alpha_i in [0.15, 0.5, 1.0]:
+    for alpha_i in [0.15, 0.4]:
         height_arr = []
-        for height in [50, 100, 200, 300]:
+        print("alpha_i = {}...".format(alpha_i))
+        for height in [30.0, 50.0, 75.0, 200.0]:
+            print("\t height = {}...".format(height))
             title=f"$\\alpha_i = {alpha_i}^\\circ$, $ h = {height}$ nm"
             result = run_simulation(alpha_i, height)
             height_arr.append((result,title))
