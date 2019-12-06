@@ -71,7 +71,7 @@ def get_simulation(alpha_i=0.15):
     if spherical_detector:
         simulation.setDetectorParameters(500, -1.0*deg, 1.0*deg, 500, 0.0*deg, 2.0*deg)
     else:
-        side_mm = 150.0
+        side_mm = 100.0
         side_bins = 200
         distance_to_detector_mm = 7000.0
         direct_beam_vertical_mm = - distance_to_detector_mm * np.tan(alpha_i*np.pi/180.0)
@@ -94,7 +94,7 @@ if __name__ == '__main__':
     for alpha_i in [0.15, 0.4]:
         height_arr = []
         print("alpha_i = {}...".format(alpha_i))
-        for height in [30.0, 50.0, 75.0, 200.0]:
+        for height in [50.0, 75.0, 100, 200.0]:
             print("\t height = {}...".format(height))
             title=f"$\\alpha_i = {alpha_i}^\\circ$, $ h = {height}$ nm"
             result = run_simulation(alpha_i, height)
