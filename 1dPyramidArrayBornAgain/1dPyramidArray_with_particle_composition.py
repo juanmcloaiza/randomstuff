@@ -21,15 +21,15 @@ def get_sample(height=50):
 
     # Defining Particles
     particle_1 = ba.Particle(material_2, formFactor_1)
-    particle_1_position = kvector_t(-100.0*nm, -100.0*nm, 0.0*nm)
+    particle_1_position = kvector_t(-100.0*nm, 100.0*nm, 0.0*nm)
     particle_1.setPosition(particle_1_position)
 
     particle_2 = ba.Particle(material_2, formFactor_2)
-    particle_2_position = kvector_t(100.0*nm, 100.0*nm, 0.0*nm)
+    particle_2_position = kvector_t(-100.0*nm, -100.0*nm, 0.0*nm)
     particle_2.setPosition(particle_2_position)
 
     particle_3 = ba.Particle(material_2, formFactor_3)
-    particle_3_position = kvector_t(0.0, 100.0, height*nm)
+    particle_3_position = kvector_t(0.0, 0.0, height*nm)
     particle_3.setPosition(particle_3_position)
 
 
