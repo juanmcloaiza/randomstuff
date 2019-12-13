@@ -1,0 +1,6 @@
+mv "$\alpha_i = 0.125^\circ$, $ h = 200.0$ nm_mesocrystal_core_shel.txt" 0.125_200_mesocrystal_core_shell.txt
+mv "$\alpha_i = 0.125^\circ$, $ h = 25.0$ nm_mesocrystal_core_shel.txt" 0.125_25_mesocrystal_core_shell.txt
+mv "$\alpha_i = 0.125^\circ$, $ h = 50.0$ nm_mesocrystal_core_shel.txt" 0.125_50_mesocrystal_core_shell.txt
+mv "$\alpha_i = 0.35^\circ$, $ h = 200.0$ nm_mesocrystal_core_shel.txt" 0.35_200_mesocrystal_core_shell.txt
+mv "$\alpha_i = 0.35^\circ$, $ h = 25.0$ nm_mesocrystal_core_shel.txt" 0.35_25_mesocrystal_core_shell.txt
+mv "$\alpha_i = 0.35^\circ$, $ h = 50.0$ nm_mesocrystal_core_shel.txt" 0.35_50_mesocrystal_core_shell.txt
