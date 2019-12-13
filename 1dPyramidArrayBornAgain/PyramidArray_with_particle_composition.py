@@ -15,21 +15,22 @@ def get_sample(height=50):
     layer_2 = ba.Layer(material_3)
 
     # Defining Form Factors
-    formFactor_1 = ba.FormFactorFullSphere(50.0*nm)
-    formFactor_2 = ba.FormFactorFullSphere(50.0*nm)
-    formFactor_3 = ba.FormFactorFullSphere(50.0*nm)
+    sphere_radius = 25.0*nm
+    formFactor_1 = ba.FormFactorFullSphere(sphere_radius)
+    formFactor_2 = ba.FormFactorFullSphere(sphere_radius)
+    formFactor_3 = ba.FormFactorFullSphere(sphere_radius)
 
     # Defining Particles
     particle_1 = ba.Particle(material_2, formFactor_1)
-    particle_1_position = kvector_t(-100.0*nm, 100.0*nm, 0.0*nm)
+    particle_1_position = kvector_t(-100.0*nm, -100.0*nm, 0.0*nm)
     particle_1.setPosition(particle_1_position)
 
     particle_2 = ba.Particle(material_2, formFactor_2)
-    particle_2_position = kvector_t(-100.0*nm, -100.0*nm, 0.0*nm)
+    particle_2_position = kvector_t(-100.0*nm, 100.0*nm, 0.0*nm)
     particle_2.setPosition(particle_2_position)
 
     particle_3 = ba.Particle(material_2, formFactor_3)
-    particle_3_position = kvector_t(0.0, 0.0, height*nm)
+    particle_3_position = kvector_t(0.0*nm, 0.0*nm, height*nm)
     particle_3.setPosition(particle_3_position)
 
 
@@ -70,16 +71,20 @@ def get_simulation(alpha_i=0.15):
 
     distr_1 = ba.DistributionGaussian(0.1*nm, 0.01*nm)
     simulation.addParameterDistribution("*/Beam/Wavelength", distr_1, 25, 3.0, ba.RealLimits.positive())
-    #simulation.getOptions().setMonteCarloIntegration(True, 50)
+    simulation.getOptions().setMonteCarloIntegration(False, 50)
     if spherical_detector:
         simulation.setDetectorParameters(500, -1.0*deg, 1.0*deg, 500, 0.0*deg, 2.0*deg)
     else:
-        side_mm = 100.0
-        side_bins = 100
+        qy_limit = 0.7#4487765659211788
+        qz_limit = 1.31
+        wavelength_nm = 0.1
+        side_bins = 200
         distance_to_detector_mm = 7000.0
+        side_mm_x = 2. * distance_to_detector_mm * np.tan( 2. * np.arcsin(qy_limit/4./np.pi)) * wavelength_nm
+        side_mm_y = distance_to_detector_mm * np.tan( 2. * np.arcsin(qz_limit/4./np.pi)) * wavelength_nm
         direct_beam_vertical_mm = - distance_to_detector_mm * np.tan(alpha_i*np.pi/180.0)
-        detector = ba.RectangularDetector(side_bins, side_mm, side_bins, side_mm)
-        detector.setPerpendicularToDirectBeam(distance_to_detector_mm, side_mm/2.0, direct_beam_vertical_mm)
+        detector = ba.RectangularDetector(side_bins, side_mm_x, side_bins, side_mm_y)
+        detector.setPerpendicularToDirectBeam(distance_to_detector_mm, side_mm_x/2.0, 0.0)#direct_beam_vertical_mm)
         simulation.setDetector(detector)
     return simulation
 
@@ -97,7 +102,7 @@ if __name__ == '__main__':
     for alpha_i in [0.15, 0.4]:
         height_arr = []
         print("alpha_i = {}...".format(alpha_i))
-        for height in [0.0, 25.0, 50, 100.0]:
+        for height in [0.0,  50.0, 200.0]:
             print("\t height = {}...".format(height))
             title=f"$\\alpha_i = {alpha_i}^\\circ$, $ h = {height}$ nm"
             result = run_simulation(alpha_i, height)
