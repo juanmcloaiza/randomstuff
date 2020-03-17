@@ -1,4 +1,5 @@
 import PyQt5.QtWidgets as QtW
+from PyQt5 import QtCore
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib as mpl
@@ -14,8 +15,13 @@ class MainWindow(QtW.QMainWindow):
 
         self.layout = QtW.QVBoxLayout()
         self.layout.addWidget(self.my_frame)
-        self.setLayout(self.layout)
         self.setCentralWidget(self.my_frame)
+
+class MyOpenFileButton(QtW.QPushButton):
+    def __init__(self, parent=None):
+        super().__init__()
+
+
 
 class MyFrame(QtW.QFrame):
     def __init__(self, parent=None):
@@ -47,7 +53,6 @@ class MyGraphView(QtW.QWidget):
                     height="5%", # height : 1 inch
                     loc=9)
         
-        #self.cax = self.canvas.figure.add_axes([0.3,0.8,0.5,0.05])
 
         self.Title = QtW.QLabel(self)
         self.Title.setText(title)
@@ -59,13 +64,28 @@ class MyGraphView(QtW.QWidget):
         self.setLayout(self.layout)
 
 
-        self.canvas.rs = None 
         # connect mouse events to canvas
-        self.canvas.mpl_connect('key_press_event', self.toogle_selector)
         self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
+        self.canvas.mpl_connect('key_press_event', self.toggle_selector)
 
-        self.canvas.show()
+        self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus)
+        self.canvas.setFocus()
+
+
+        self.canvas.draw()
         self.test_show()
+
+
+    def toggle_selector(self, event):
+        print(' Key pressed.')
+        if event.key in ['Q', 'q']:
+            print('key Q')
+            self.rs.to_draw.set_visible(False)
+            self.canvas.draw()
+        if event.key in ['A', 'a']:
+            print('key A')
+            self.rs.to_draw.set_visible(True)
+            self.canvas.draw()
 
 
     def on_mouse_wheel(self, event):
@@ -87,30 +107,21 @@ class MyGraphView(QtW.QWidget):
 
             return
 
-    def update_colorbar(self, vmin, vmax):
-        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-        self.cax.clear()
-        mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = norm)#, fraction=.1)
 
+    def update_colorbar(self, vmin, vmax):
+        self.cax.clear()
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+        mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = norm)#, fraction=.1)
         self.canvas.draw()
         return
             
 
-    def toogle_selector(self, event):
-        print(' Key pressed.')
-        if event.key in ['Q', 'q'] and toggle_selector.RS.active:
-            print(' RectangleSelector deactivated.')
-            toggle_selector.RS.set_active(False)
-        if event.key in ['A', 'a'] and not toggle_selector.RS.active:
-            print(' RectangleSelector activated.')
-            toggle_selector.RS.set_active(True)
-
-    
     def line_select_callback(self, eclick, erelease):
         x1, y1 = eclick.xdata, eclick.ydata
         x2, y2 = erelease.xdata, erelease.ydata
         print("(%3.2f, %3.2f) --> (%3.2f, %3.2f)" % (x1, y1, x2, y2))
         print(" The button you used were: %s %s" % (eclick.button, erelease.button))
+
         #self.x1, self.x2, self.y1, self.y2 = x1, x2, y1, y2
         #Z = self.Z
         #floor = int
@@ -124,24 +135,26 @@ class MyGraphView(QtW.QWidget):
         if title != None:
             self.ax.set_title(title)
 
-###
         cont_x = self.ax.contour(X,colors='k', linestyles='solid')
         cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         z_imshow = self.ax.imshow(Z)
         self.X = X
         self.Y = Y
         self.Z = Z
-        #if self.cbar is None:
-        self.cbar = self.canvas.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')#, fraction=.1)
+        
+        self.cbar = self.canvas.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')
+
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
                                                 button=[1, 3],  # don't use middle button
-                                                minspanx=5, minspany=5,
+                                                minspanx=0, minspany=0,
                                                 spancoords='pixels',
                                                 interactive=True)
 
+
         self.canvas.draw()
-###
+        return
+
 
     def test_show(self):
         t = np.linspace(-np.pi,np.pi, 1025)
