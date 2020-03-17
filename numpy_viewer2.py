@@ -1,39 +1,71 @@
-import sys
-import numpy as np
-import matplotlib
-from PyQt5 import QtCore
 import PyQt5.QtWidgets as QtW
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.figure import Figure
+import matplotlib as mpl
 from matplotlib.widgets import RectangleSelector
+from mpl_toolkits.axes_grid.inset_locator import inset_axes
+import numpy as np
+import sys
 
-class MyPlotWidget(FigureCanvasQTAgg):
+class MainWindow(QtW.QMainWindow):
+    def __init__(self, parent=None):
+        super(MainWindow, self).__init__(parent)
+        self.my_frame = MyFrame(self)
 
-    def __init__(self, width=10, height=5):
-        super().__init__(matplotlib.figure.Figure(figsize=(width,height)))
-        #self.canvas = FigureCanvasQTAgg(self.fig)
-        self.ax = self.figure.add_axes([0,0,1,1]) #[0.27, 0.8, 0.5, 0.05])
-        self.cax = self.figure.add_axes([0.27, 0.8, 0.5, 0.05])
-        self.cbar = None
+        self.layout = QtW.QVBoxLayout()
+        self.layout.addWidget(self.my_frame)
+        self.setLayout(self.layout)
+        self.setCentralWidget(self.my_frame)
+
+class MyFrame(QtW.QFrame):
+    def __init__(self, parent=None):
+        super(MyFrame, self).__init__(parent)
+        self.setFrameShape(QtW.QFrame.StyledPanel)
+        self.parent = parent
+        self.graph_view = MyGraphView('myFrame', 'FFT Transform:', 'FFT Transform of Signal', self)
+
+    def resizeEvent(self, event):
+        self.graph_view.setGeometry(self.rect())
+
+
+class MyGraphView(QtW.QWidget):
+    def __init__(self, name, title, graph_title, parent = None):
+        super(MyGraphView, self).__init__(parent)
+
+        self.name = name
+        self.graph_title = graph_title
+
+        self.dpi = 100
+        self.fig = Figure((5.0, 5.0), dpi = self.dpi, facecolor = (1,1,1), edgecolor = (0,0,0))
+        self.canvas = FigureCanvas(self.fig)
+        self.canvas.setParent(self)
+
+        self.ax = self.canvas.figure.add_axes([0.1,0.1,0.8,0.8])
+
+        self.cax = inset_axes(self.ax,
+                    width="90%", # width = 30% of parent_bbox
+                    height="5%", # height : 1 inch
+                    loc=9)
         
+        #self.cax = self.canvas.figure.add_axes([0.3,0.8,0.5,0.05])
 
-        #x = np.linspace(0,1,100)
-        #y = np.sin(x)
-        #self.ax.plot(x,y)
-        self.draw()
-        self.X = None
-        self.Y = None
-        self.Z = None
+        self.Title = QtW.QLabel(self)
+        self.Title.setText(title)
 
-        self.cbar_min = 0.0
-        self.cbar_max = 1.0
-        
-        self.rs = None 
+        self.layout = QtW.QVBoxLayout()
+        self.layout.addWidget(self.Title)
+        self.layout.addWidget(self.canvas)
+        self.layout.setStretchFactor(self.canvas, 1)
+        self.setLayout(self.layout)
 
+
+        self.canvas.rs = None 
         # connect mouse events to canvas
-        self.figure.canvas.mpl_connect('key_press_event', self.toogle_selector)
-        self.figure.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
-    
-        return
+        self.canvas.mpl_connect('key_press_event', self.toogle_selector)
+        self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
+
+        self.canvas.show()
+        self.test_show()
 
 
     def on_mouse_wheel(self, event):
@@ -50,11 +82,18 @@ class MyPlotWidget(FigureCanvasQTAgg):
                 print(self.cbar.get_clim())
             else:
                 print(event.button)
-            #self.cbar.ax.set_clim(self.cbar.get_clim())
-            self.cbar.vmin, self.cbar.vmax = self.cbar.get_clim()
-            self.cbar.set_ticks(np.linspace(self.cbar.vmin, self.cbar.vmax, 10))
-            self.cbar.ax.autoscale_view()
-            self.draw()
+
+            self.update_colorbar(*self.cbar.get_clim())
+
+            return
+
+    def update_colorbar(self, vmin, vmax):
+        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
+        self.cax.clear()
+        mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = norm)#, fraction=.1)
+
+        self.canvas.draw()
+        return
             
 
     def toogle_selector(self, event):
@@ -78,52 +117,47 @@ class MyPlotWidget(FigureCanvasQTAgg):
         #self.ax1.plot(Z[floor(x1):floor(x2),floor(y1):floor(y2)].sum(axis=1))
         #self.ax2.plot((x1, x2), (y1,y2))
 
-    def show(self, X,Y,Z):
-        cont_x = self.ax.contour(X, levels=2,colors='k', linestyles='solid')
-        cont_y = self.ax.contour(Y, levels=2,colors='k', linestyles='solid')
+
+    def update_graph(self, X, Y, Z, vmin = None, vmax = None, title = None):
+        self.ax.clear()
+        self.cax.clear()
+        if title != None:
+            self.ax.set_title(title)
+
+###
+        cont_x = self.ax.contour(X,colors='k', linestyles='solid')
+        cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         z_imshow = self.ax.imshow(Z)
         self.X = X
         self.Y = Y
         self.Z = Z
         #if self.cbar is None:
-        self.cbar = self.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')#, fraction=.1)
+        self.cbar = self.canvas.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')#, fraction=.1)
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
                                                 button=[1, 3],  # don't use middle button
                                                 minspanx=5, minspany=5,
                                                 spancoords='pixels',
                                                 interactive=True)
-    
-        return
 
+        self.canvas.draw()
+###
 
     def test_show(self):
         t = np.linspace(-np.pi,np.pi, 1025)
-        y = np.sin(t)
-        x = np.cos(t)
+        y = t#np.sin(t)
+        x = t#np.cos(t)
         X, Y = np.meshgrid(x,y)
-        Z = X + Y
-        self.show(X,Y,Z)
+        Z = np.sin(X) * np.cos(Y)
+        self.update_graph(X,Y,Z)
         return
-    
-
-
-class MainWindow(QtW.QMainWindow):
-
-    def __init__(self):
-        super().__init__()
-        self.setWindowTitle('MyWindow')
-        self._main = MyPlotWidget()
-        self.setCentralWidget(self._main)
-        self._main.test_show()
-        self.show()
 
 
 
 
-if __name__ == '__main__':
-    app = QtCore.QCoreApplication.instance()
-    if app is None: app = QtW.QApplication(sys.argv)
-    win = MainWindow()
-    app.aboutToQuit.connect(app.deleteLater)
+
+if __name__ == "__main__":
+    app = QtW.QApplication(sys.argv)
+    window = MainWindow()
+    window.show()
     app.exec_()
