@@ -1,5 +1,6 @@
 import PyQt5.QtWidgets as QtW
 from PyQt5 import QtCore
+from PyQt5.QtCore import Qt, pyqtSlot
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 import matplotlib as mpl
@@ -8,19 +9,39 @@ from mpl_toolkits.axes_grid.inset_locator import inset_axes
 import numpy as np
 import sys
 
-class MainWindow(QtW.QMainWindow):
-    def __init__(self, parent=None):
-        super(MainWindow, self).__init__(parent)
-        self.my_frame = MyFrame(self)
 
-        self.layout = QtW.QVBoxLayout()
-        self.layout.addWidget(self.my_frame)
+
+def safe_parse_numpy(file_path):
+        try:
+            nparray = np.load(file_path)
+            print(f"{file_path}:")
+            print(f"Loaded array with shape: {nparray.shape}")
+            return nparray
+        except Exception as e:
+            App.handle_exception(e)
+            return None
+
+
+class App(QtW.QMainWindow):
+    def __init__(self, parent=None):
+        super(App, self).__init__(parent)
+        self.my_frame = MyFrame(self)
         self.setCentralWidget(self.my_frame)
 
-class MyOpenFileButton(QtW.QPushButton):
-    def __init__(self, parent=None):
-        super().__init__()
 
+    @staticmethod
+    def handle_exception(e):
+        msg = (f"Exception: {e}\n")
+        msg += ("-"*60+"\n")
+        msg += traceback.format_exc()
+        msg += ("-"*60+"\n")
+        print(msg)
+        pop_up = QMessageBox()
+        pop_up.setWindowTitle(f"Exception: {e}\n")
+        pop_up.setText(msg)
+        pop_up.setIcon(QMessageBox.Critical)
+        x = pop_up.exec_()
+        return
 
 
 class MyFrame(QtW.QFrame):
@@ -28,7 +49,13 @@ class MyFrame(QtW.QFrame):
         super(MyFrame, self).__init__(parent)
         self.setFrameShape(QtW.QFrame.StyledPanel)
         self.parent = parent
-        self.graph_view = MyGraphView('myFrame', 'FFT Transform:', 'FFT Transform of Signal', self)
+        layout = QtW.QVBoxLayout()
+        self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
+        self.openFileButton = MyOpenNumpyButton(self.graph_view.update_graph)
+        layout.addWidget(self.graph_view)
+        layout.addWidget(self.openFileButton)
+        self.setLayout(layout)
+        
 
     def resizeEvent(self, event):
         self.graph_view.setGeometry(self.rect())
@@ -129,17 +156,17 @@ class MyGraphView(QtW.QWidget):
         #self.ax2.plot((x1, x2), (y1,y2))
 
 
-    def update_graph(self, X, Y, Z, vmin = None, vmax = None, title = None):
+    def update_graph(self, Z, vmin = None, vmax = None, title = None):
         self.ax.clear()
         self.cax.clear()
         if title != None:
             self.ax.set_title(title)
 
-        cont_x = self.ax.contour(X,colors='k', linestyles='solid')
-        cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
+        #cont_x = self.ax.contour(X,colors='k', linestyles='solid')
+        #cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         z_imshow = self.ax.imshow(Z)
-        self.X = X
-        self.Y = Y
+        #self.X = X
+        #self.Y = Y
         self.Z = Z
         
         self.cbar = self.canvas.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')
@@ -162,15 +189,35 @@ class MyGraphView(QtW.QWidget):
         x = t#np.cos(t)
         X, Y = np.meshgrid(x,y)
         Z = np.sin(X) * np.cos(Y)
-        self.update_graph(X,Y,Z)
+        self.update_graph(Z)
+        np.save("./myNumpyArray.npy", np.sin(X**2 + Y**2))
         return
 
+
+class MyOpenNumpyButton(QtW.QPushButton):
+    def __init__(self, callback, parent=None):
+        super(MyOpenNumpyButton, self).__init__(parent)
+        self.setText("Open Numpy Array")
+        self.clicked.connect(self.on_click)
+        self.callback = callback
+        return
+
+    @pyqtSlot()
+    def on_click(self):
+        options = QtW.QFileDialog.Options()
+        options |= QtW.QFileDialog.DontUseNativeDialog
+        fileName, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
+        if fileName:
+            self.callback(safe_parse_numpy(fileName))
+            return None
+        else:
+            return None 
 
 
 
 
 if __name__ == "__main__":
     app = QtW.QApplication(sys.argv)
-    window = MainWindow()
+    window = App()
     window.show()
     app.exec_()
