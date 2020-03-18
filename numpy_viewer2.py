@@ -53,9 +53,11 @@ class MyFrame(QtW.QFrame):
         self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
         self.openFileButton = MyOpenNumpyButton(self.graph_view.update_graph)
         self.toggleLogButton = MyToggleLogButton(self.graph_view.update_graph)
+        self.minMaxSpinboxes = MyMinMaxSpinboxes(self.graph_view.update_graph)
         layout.addWidget(self.graph_view)
         layout.addWidget(self.openFileButton)
         layout.addWidget(self.toggleLogButton)
+        layout.addWidget(self.minMaxSpinboxes)
         self.setLayout(layout)
         
 
@@ -254,7 +256,7 @@ class MyGraphView(QtW.QWidget):
     def build_imshow(self):
         self.ax_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
         self.zax_imshow = self.zax.imshow(self.data.Zzoom, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax,
-                                            extent=[self.data.x1, self.data.x2, self.data.y1, self.data.y2])
+                                            extent=[self.data.x1, self.data.x2, self.data.y2, self.data.y1])
         print("Norm:")
         print(self.norm.vmin)
         print(self.norm.vmax)
@@ -262,10 +264,8 @@ class MyGraphView(QtW.QWidget):
         return #build_imshow
 
     def build_cbar(self):
-        #To me, this looks hacky but it works to make the colorbar and the imshow work in consonance:
         cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
         cbar.set_clim(self.norm.vmin, self.norm.vmax)
-        #cbar = mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = self.norm)#, fraction=.1)
         self.cbar = cbar
         return #build_cbar
 
@@ -315,6 +315,30 @@ class MyToggleLogButton(QtW.QPushButton):
     def on_click(self):
             self.toggle_on = not self.toggle_on
             self.callback(log_scale = self.toggle_on, reset_limits_required=True)
+            return None
+
+
+class MyMinMaxSpinboxes(QtW.QFrame):
+    def __init__(self, callback, parent=None):
+        super(MyMinMaxSpinboxes, self).__init__(parent)
+        self.maxSpinbox = QtW.QDoubleSpinBox()
+        self.minSpinbox = QtW.QDoubleSpinBox()
+        self.maxSpinbox.setMaximum(np.inf)
+        self.maxSpinbox.setMinimum(-np.inf)
+        self.minSpinbox.setMaximum(np.inf)
+        self.minSpinbox.setMinimum(-np.inf)
+        self.layout = QtW.QFormLayout()
+        self.layout.addRow(QtW.QLabel("color min: "), self.minSpinbox)
+        self.layout.addRow(QtW.QLabel("color max: "), self.maxSpinbox)
+        self.maxSpinbox.valueChanged.connect(self.on_val_change) # .connect(self.on_click)
+        self.minSpinbox.valueChanged.connect(self.on_val_change) # .connect(self.on_click)
+        self.callback = callback
+        self.setLayout(self.layout)
+        return
+
+    @pyqtSlot()
+    def on_val_change(self):
+            self.callback(zmax=self.maxSpinbox.value(), zmin=self.minSpinbox.value())
             return None
 
 
