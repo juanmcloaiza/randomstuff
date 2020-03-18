@@ -129,6 +129,7 @@ class MyGraphView(QtW.QWidget):
         self.params.zmax = 1
 
         self.params.log_scale = False
+        self.params.reset_limits_required = False
 
         self.params.title = ""
         return #init_data_and_parameters
@@ -197,8 +198,9 @@ class MyGraphView(QtW.QWidget):
         self.cax.clear()
         self.ax.set_title(self.params.title)
 
-        self.z_imshow = self.ax.imshow(self.data.Z)
-        self.cbar = self.build_cbar()
+        self.build_norm()
+        self.build_imshow()
+        self.build_cbar()
         print(self.params.__dict__)
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
@@ -213,18 +215,43 @@ class MyGraphView(QtW.QWidget):
         return
 
 
-    def build_cbar(self):
+    def build_norm(self):
+        if self.params.reset_limits_required:
+            self.params.zmin = self.data.Z.min()
+            self.params.zmax = self.data.Z.max()
+            self.params.reset_limits_required = False
+
         if self.params.log_scale:
-            self.update_params(zmin = 1e-10)
+            self.take_care_of_negative_values()
             self.norm = mpl.colors.LogNorm(vmin=self.params.zmin, vmax=self.params.zmax)
         else:
             self.norm = mpl.colors.Normalize(vmin=self.params.zmin, vmax=self.params.zmax)
+        return #build_norm
 
+
+    def take_care_of_negative_values(self):
+        if self.params.zmin <= 0:
+            self.params.zmin = np.abs(self.data.Z.mean()/1e3)
+        if self.params.zmax <= 0:
+            self.params.zmax = 1+np.abs(self.data.Z.mean()/1e3)
+        return #take_care_of_negative_values
+
+
+    def build_imshow(self):
+        self.z_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
+        print("Norm:")
+        print(self.norm.vmin)
+        print(self.norm.vmax)
+        print(self.norm.__dict__)
+        return #build_imshow
+
+    def build_cbar(self):
         #To me, this looks hacky but it works to make the colorbar and the imshow work in consonance:
         cbar = self.canvas.figure.colorbar(self.z_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
-        cbar.set_clim(self.params.zmin, self.params.zmax)
-        cbar = mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = self.norm)#, fraction=.1)
-        return cbar
+        cbar.set_clim(self.norm.vmin, self.norm.vmax)
+        #cbar = mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = self.norm)#, fraction=.1)
+        self.cbar = cbar
+        return #build_cbar
 
 
     def test_show(self):
@@ -271,9 +298,8 @@ class MyToggleLogButton(QtW.QPushButton):
     @pyqtSlot()
     def on_click(self):
             self.toggle_on = not self.toggle_on
-            self.callback(log_scale = self.toggle_on)
+            self.callback(log_scale = self.toggle_on, reset_limits_required=True)
             return None
-
 
 
 if __name__ == "__main__":
