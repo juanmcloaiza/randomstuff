@@ -76,15 +76,17 @@ class MyGraphView(QtW.QWidget):
         self.graph_title = graph_title
 
         self.dpi = 100
-        self.fig = Figure((5.0, 5.0), dpi = self.dpi, facecolor = (1,1,1), edgecolor = (0,0,0))
+        self.fig = Figure((10.0, 5.0), dpi = self.dpi, facecolor = (1,1,1), edgecolor = (0,0,0))
         self.canvas = FigureCanvas(self.fig)
         self.canvas.setParent(self)
 
-        self.ax = self.canvas.figure.add_axes([0.1,0.1,0.8,0.8])
+        self.ax =  self.canvas.figure.add_axes([0.1,0.1,0.35,0.7])
+        self.zax = self.canvas.figure.add_axes([0.6,0.1,0.35,0.7])
         self.cax = inset_axes(self.ax,
                     width="90%", # width = 30% of parent_bbox
                     height="5%", # height : 1 inch
                     loc=9)
+
         
         self.data = DataToPlot()
         self.params = DataToPlot()
@@ -119,6 +121,12 @@ class MyGraphView(QtW.QWidget):
         self.data.Y = np.zeros((10,10))
         self.data.Z = np.zeros((10,10))
 
+        self.data.Zzoom = np.zeros((10,10))
+        self.data.x1 = 0
+        self.data.x2 = 10
+        self.data.y1 = 0
+        self.data.y2 = 10
+
         self.params.xmin = -1
         self.params.xmax = 1
 
@@ -151,25 +159,28 @@ class MyGraphView(QtW.QWidget):
     def on_mouse_wheel(self, event):
         print('Mouse wheel')
         if self.cax == event.inaxes:
-            print()
             if event.button == 'up':
                 print("up")
-                vmin, vmax = (0.9 * c for c in self.cbar.get_clim())
+                func = lambda c: c**0.9 if self.params.log_scale else 0.9*c
             elif event.button == 'down':
                 print("down")
-                vmin, vmax = (1.1 * c for c in self.cbar.get_clim())
+                func = lambda c: c**1.1 if self.params.log_scale else 1.1*c
             else:
                 print(event.button)
+                return
+
+            vmin, vmax = (func(c) for c in self.cbar.get_clim())
             self.update_graph(zmin=vmin,zmax=vmax)
         return #on_mouse_wheel
            
 
     def line_select_callback(self, eclick, erelease):
-        x1, y1 = eclick.xdata, eclick.ydata
-        x2, y2 = erelease.xdata, erelease.ydata
+        x1, y1 = int(eclick.xdata), int(eclick.ydata)
+        x2, y2 = int(erelease.xdata), int(erelease.ydata)
         print("(%3.2f, %3.2f) --> (%3.2f, %3.2f)" % (x1, y1, x2, y2))
         print(" The button you used were: %s %s" % (eclick.button, erelease.button))
-
+        Zzoom = self.data.Z[y1:y2,x1:x2]
+        self.update_graph(x1=x1, x2=x2, y1=y1, y2=y2, Zzoom = Zzoom)
         #self.x1, self.x2, self.y1, self.y2 = x1, x2, y1, y2
         #Z = self.data.Z
         #floor = int
@@ -196,12 +207,15 @@ class MyGraphView(QtW.QWidget):
         self.update_params(**kwargs)
         self.ax.clear()
         self.cax.clear()
+        self.zax.clear()
         self.ax.set_title(self.params.title)
 
         self.build_norm()
         self.build_imshow()
         self.build_cbar()
         print(self.params.__dict__)
+
+
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
                                                 button=[1, 3],  # don't use middle button
@@ -238,7 +252,9 @@ class MyGraphView(QtW.QWidget):
 
 
     def build_imshow(self):
-        self.z_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
+        self.ax_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
+        self.zax_imshow = self.zax.imshow(self.data.Zzoom, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax,
+                                            extent=[self.data.x1, self.data.x2, self.data.y1, self.data.y2])
         print("Norm:")
         print(self.norm.vmin)
         print(self.norm.vmax)
@@ -247,7 +263,7 @@ class MyGraphView(QtW.QWidget):
 
     def build_cbar(self):
         #To me, this looks hacky but it works to make the colorbar and the imshow work in consonance:
-        cbar = self.canvas.figure.colorbar(self.z_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
+        cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
         cbar.set_clim(self.norm.vmin, self.norm.vmax)
         #cbar = mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = self.norm)#, fraction=.1)
         self.cbar = cbar
