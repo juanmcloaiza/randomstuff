@@ -60,6 +60,11 @@ class MyFrame(QtW.QFrame):
     def resizeEvent(self, event):
         self.graph_view.setGeometry(self.rect())
 
+class DataToPlot(object):
+    def __init__(self):
+        pass
+
+
 
 class MyGraphView(QtW.QWidget):
     def __init__(self, name, title, graph_title, parent = None):
@@ -74,12 +79,14 @@ class MyGraphView(QtW.QWidget):
         self.canvas.setParent(self)
 
         self.ax = self.canvas.figure.add_axes([0.1,0.1,0.8,0.8])
-
         self.cax = inset_axes(self.ax,
                     width="90%", # width = 30% of parent_bbox
                     height="5%", # height : 1 inch
                     loc=9)
         
+        self.data = DataToPlot()
+        self.params = DataToPlot()
+        self.init_data_and_parameters()
 
         self.Title = QtW.QLabel(self)
         self.Title.setText(title)
@@ -101,6 +108,28 @@ class MyGraphView(QtW.QWidget):
 
         self.canvas.draw()
         self.test_show()
+        return #__init__()
+
+
+
+    def init_data_and_parameters(self):
+        self.data.X = np.zeros((10,10))
+        self.data.Y = np.zeros((10,10))
+        self.data.Z = np.zeros((10,10))
+
+        self.params.xmin = -1
+        self.params.xmax = 1
+
+        self.params.ymin = -1
+        self.params.ymax = 1
+
+        self.params.zmin = -1
+        self.params.zmax = 1
+
+        self.params.log_scale = False
+
+        self.params.title = ""
+        return #init_data_and_parameters
 
 
     def toggle_selector(self, event):
@@ -113,6 +142,7 @@ class MyGraphView(QtW.QWidget):
             print('key A')
             self.rs.to_draw.set_visible(True)
             self.canvas.draw()
+        return #toggle_selector
 
 
     def on_mouse_wheel(self, event):
@@ -121,27 +151,15 @@ class MyGraphView(QtW.QWidget):
             print()
             if event.button == 'up':
                 print("up")
-                self.cbar.set_clim([0.9 * c for c in self.cbar.get_clim()])
-                print(self.cbar.get_clim())
+                vmin, vmax = (0.9 * c for c in self.cbar.get_clim())
             elif event.button == 'down':
                 print("down")
-                self.cbar.set_clim([1.1 * c for c in self.cbar.get_clim()])
-                print(self.cbar.get_clim())
+                vmin, vmax = (1.1 * c for c in self.cbar.get_clim())
             else:
                 print(event.button)
-
-            self.update_colorbar(*self.cbar.get_clim())
-
-            return
-
-
-    def update_colorbar(self, vmin, vmax):
-        self.cax.clear()
-        norm = mpl.colors.Normalize(vmin=vmin, vmax=vmax)
-        mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = norm)#, fraction=.1)
-        self.canvas.draw()
-        return
-            
+            self.update_graph(zmin=vmin,zmax=vmax)
+        return #on_mouse_wheel
+           
 
     def line_select_callback(self, eclick, erelease):
         x1, y1 = eclick.xdata, eclick.ydata
@@ -150,27 +168,36 @@ class MyGraphView(QtW.QWidget):
         print(" The button you used were: %s %s" % (eclick.button, erelease.button))
 
         #self.x1, self.x2, self.y1, self.y2 = x1, x2, y1, y2
-        #Z = self.Z
+        #Z = self.data.Z
         #floor = int
         #self.ax1.plot(Z[floor(x1):floor(x2),floor(y1):floor(y2)].sum(axis=1))
         #self.ax2.plot((x1, x2), (y1,y2))
+        return #line_select_callback
 
 
-    def update_graph(self, Z, vmin = None, vmax = None, title = None):
+        
+    def update_data(self, **kwargs):
+        for k in self.data.__dict__.keys():
+            if k in kwargs.keys():
+                self.data.__setattr__(k,kwargs[k])
+
+
+    def update_params(self, **kwargs):
+        for k in self.params.__dict__.keys():
+            if k in kwargs.keys():
+                self.params.__setattr__(k,kwargs[k])
+
+
+    def update_graph(self, **kwargs):
+        self.update_data(**kwargs)
+        self.update_params(**kwargs)
         self.ax.clear()
         self.cax.clear()
-        if title != None:
-            self.ax.set_title(title)
+        self.ax.set_title(self.params.title)
 
-        #cont_x = self.ax.contour(X,colors='k', linestyles='solid')
-        #cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
-        z_imshow = self.ax.imshow(Z)
-        #self.X = X
-        #self.Y = Y
-        self.Z = Z
-        
-        self.cbar = self.canvas.figure.colorbar(z_imshow, cax=self.cax, orientation='horizontal')
-
+        self.z_imshow = self.ax.imshow(self.data.Z)
+        self.cbar = self.build_cbar()
+        print(self.params.__dict__)
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
                                                 button=[1, 3],  # don't use middle button
@@ -178,9 +205,24 @@ class MyGraphView(QtW.QWidget):
                                                 spancoords='pixels',
                                                 interactive=True)
 
-
         self.canvas.draw()
+        #cont_x = self.ax.contour(X,colors='k', linestyles='solid')
+        #cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         return
+
+
+    def build_cbar(self):
+        if self.params.log_scale:
+            self.update_params(zmin = 1e-10)
+            self.norm = mpl.colors.LogNorm(vmin=self.params.zmin, vmax=self.params.zmax)
+        else:
+            self.norm = mpl.colors.Normalize(vmin=self.params.zmin, vmax=self.params.zmax)
+
+        #To me, this looks hacky but it works to make the colorbar and the imshow work in consonance:
+        cbar = self.canvas.figure.colorbar(self.z_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
+        cbar.set_clim(self.params.zmin, self.params.zmax)
+        cbar = mpl.colorbar.ColorbarBase(self.cax, orientation='horizontal', norm = self.norm)#, fraction=.1)
+        return cbar
 
 
     def test_show(self):
@@ -189,17 +231,17 @@ class MyGraphView(QtW.QWidget):
         x = t#np.cos(t)
         X, Y = np.meshgrid(x,y)
         Z = np.sin(X) * np.cos(Y)
-        self.update_graph(Z)
-        np.save("./myNumpyArray.npy", np.sin(X**2 + Y**2))
+        self.update_graph(Z = Z)
+        np.save("./myNumpyArray.npy", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         return
 
 
 class MyOpenNumpyButton(QtW.QPushButton):
-    def __init__(self, callback, parent=None):
+    def __init__(self, callback_to_plot, parent=None):
         super(MyOpenNumpyButton, self).__init__(parent)
         self.setText("Open Numpy Array")
         self.clicked.connect(self.on_click)
-        self.callback = callback
+        self.callback = callback_to_plot
         return
 
     @pyqtSlot()
@@ -208,11 +250,26 @@ class MyOpenNumpyButton(QtW.QPushButton):
         options |= QtW.QFileDialog.DontUseNativeDialog
         fileName, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
         if fileName:
-            self.callback(safe_parse_numpy(fileName))
+            Z = safe_parse_numpy(fileName)
+            self.callback(Z = Z, zmin = Z.min(), zmax = Z.max())
             return None
         else:
             return None 
 
+
+class MyToggleLogButton(QtW.QPushButton):
+    def __init__(self, callback_to_plot, parent=None):
+        super(MyOpenNumpyButton, self).__init__(parent)
+        self.setText("Log/Linear")
+        self.clicked.connect(self.on_click)
+        self.callback = callback_to_plot
+        self.toggle_on = False
+        return
+
+    @pyqtSlot()
+    def on_click(self):
+            self.callback(log_scale = not self.toggle_on)
+            return None
 
 
 
