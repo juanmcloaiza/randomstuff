@@ -52,8 +52,10 @@ class MyFrame(QtW.QFrame):
         layout = QtW.QVBoxLayout()
         self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
         self.openFileButton = MyOpenNumpyButton(self.graph_view.update_graph)
+        self.toggleLogButton = MyToggleLogButton(self.graph_view.update_graph)
         layout.addWidget(self.graph_view)
         layout.addWidget(self.openFileButton)
+        layout.addWidget(self.toggleLogButton)
         self.setLayout(layout)
         
 
@@ -259,7 +261,7 @@ class MyOpenNumpyButton(QtW.QPushButton):
 
 class MyToggleLogButton(QtW.QPushButton):
     def __init__(self, callback_to_plot, parent=None):
-        super(MyOpenNumpyButton, self).__init__(parent)
+        super(MyToggleLogButton, self).__init__(parent)
         self.setText("Log/Linear")
         self.clicked.connect(self.on_click)
         self.callback = callback_to_plot
@@ -268,7 +270,8 @@ class MyToggleLogButton(QtW.QPushButton):
 
     @pyqtSlot()
     def on_click(self):
-            self.callback(log_scale = not self.toggle_on)
+            self.toggle_on = not self.toggle_on
+            self.callback(log_scale = self.toggle_on)
             return None
 
 
