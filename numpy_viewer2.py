@@ -31,9 +31,9 @@ class App(QtW.QMainWindow):
         dw = QtW.QDesktopWidget()
         dx = dw.width()
         dy = dw.height()
-        self.setMinimumSize(0.1*dx, 0.1*dy) #FixedSize(x,y)
-        self.setMaximumSize(0.7*dx, 0.7*dy) #FixedSize(x,y)
-
+        self.setMinimumSize(640, 480)
+        self.setMaximumSize(0.7*dx, 0.7*dy)
+        return #__init__
 
 
     @staticmethod
@@ -43,10 +43,10 @@ class App(QtW.QMainWindow):
         msg += traceback.format_exc()
         msg += ("-"*60+"\n")
         print(msg)
-        pop_up = QMessageBox()
+        pop_up = QtW.QMessageBox()
         pop_up.setWindowTitle(f"Exception: {e}\n")
         pop_up.setText(msg)
-        pop_up.setIcon(QMessageBox.Critical)
+        pop_up.setIcon(QtW.QMessageBox.Critical)
         x = pop_up.exec_()
         return
 
@@ -57,12 +57,12 @@ class MyFrame(QtW.QFrame):
         self.setFrameShape(QtW.QFrame.StyledPanel)
         self.parent = parent
         self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
-       
+
 
     def resizeEvent(self, event):
         self.graph_view.setGeometry(self.rect())
         return #resizeEvent
-    
+
 
 class DataToPlot(object):
     def __init__(self):
@@ -74,14 +74,15 @@ class MyGraphCommands(QtW.QWidget):
         self.openFileButton = MyOpenNumpyButton(callback)
         self.toggleLogButton = MyToggleLogButton(callback)
         self.minMaxSpinboxes = MyMinMaxSpinboxes(callback)
+
         self.layout = QtW.QVBoxLayout()
-  
         self.layout.addWidget(self.openFileButton)
         self.layout.addWidget(self.toggleLogButton)
         self.layout.addWidget(self.minMaxSpinboxes)
         self.setLayout(self.layout)
         return #__init__
-    
+
+
     def update_widgets(self, **kwargs):
         to_update = {}
         keys_to_update = "zmin", "zmax"
@@ -91,10 +92,6 @@ class MyGraphCommands(QtW.QWidget):
 
         self.minMaxSpinboxes.set_min_max(**to_update)
         return #update_widgets
-
-
- 
-
 
 
 class MyGraphView(QtW.QWidget):
@@ -116,7 +113,6 @@ class MyGraphView(QtW.QWidget):
                     height="5%", # height : 1 inch
                     loc=9)
 
-        
         self.data = DataToPlot()
         self.params = DataToPlot()
         self.init_data_and_parameters()
@@ -204,7 +200,7 @@ class MyGraphView(QtW.QWidget):
             vmin, vmax = (func(c) for c in self.cbar.get_clim())
             self.update_graph(zmin=vmin,zmax=vmax)
         return #on_mouse_wheel
-           
+
 
     def line_select_callback(self, eclick, erelease):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
@@ -221,7 +217,6 @@ class MyGraphView(QtW.QWidget):
         return #line_select_callback
 
 
-        
     def update_data(self, **kwargs):
         for k in self.data.__dict__.keys():
             if k in kwargs.keys():
@@ -330,7 +325,7 @@ class MyOpenNumpyButton(QtW.QPushButton):
             self.callback(Z = Z, zmin = Z.min(), zmax = Z.max())
             return None
         else:
-            return None 
+            return None
 
 
 class MyToggleLogButton(QtW.QPushButton):
