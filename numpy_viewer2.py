@@ -63,11 +63,6 @@ class MyFrame(QtW.QFrame):
         self.graph_view.setGeometry(self.rect())
         return #resizeEvent
     
-    def update_widgets(self):
-        self.minMaxSpinboxes.set_min_max(vmin = self.graph_view.data.zmin,
-                                         vmax = self.graph_view.data.zmax)
-        return #update_widgets
-
 
 class DataToPlot(object):
     def __init__(self):
@@ -86,6 +81,18 @@ class MyGraphCommands(QtW.QWidget):
         self.layout.addWidget(self.minMaxSpinboxes)
         self.setLayout(self.layout)
         return #__init__
+    
+    def update_widgets(self, **kwargs):
+        to_update = {}
+        keys_to_update = "zmin", "zmax"
+        for k in keys_to_update:
+            if k in kwargs.keys():
+                to_update[k] = kwargs[k]
+
+        self.minMaxSpinboxes.set_min_max(**to_update)
+        return #update_widgets
+
+
  
 
 
@@ -230,6 +237,7 @@ class MyGraphView(QtW.QWidget):
     def update_graph(self, **kwargs):
         self.update_data(**kwargs)
         self.update_params(**kwargs)
+        self.commands.update_widgets(**self.params.__dict__)
         self.ax.clear()
         self.cax.clear()
         self.zax.clear()
@@ -365,9 +373,9 @@ class MyMinMaxSpinboxes(QtW.QFrame):
             self.callback(zmax=self.maxSpinbox.value(), zmin=self.minSpinbox.value())
             return None #on_focus_out
 
-    def set_min_max(self, vmin = -1, vmax = 1):
-        self.minSpinbox.setValue(vmin)
-        self.maxSpinbox.setValue(vmax)
+    def set_min_max(self, zmin = -1, zmax = 1):
+        self.minSpinbox.setValue(zmin)
+        self.maxSpinbox.setValue(zmax)
         return #set_val
 
 
