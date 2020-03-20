@@ -28,6 +28,13 @@ class App(QtW.QMainWindow):
         self.my_frame = MyFrame(self)
         self.setCentralWidget(self.my_frame)
 
+        dw = QtW.QDesktopWidget()
+        dx = dw.width()
+        dy = dw.height()
+        self.setMinimumSize(0.1*dx, 0.1*dy) #FixedSize(x,y)
+        self.setMaximumSize(0.7*dx, 0.7*dy) #FixedSize(x,y)
+
+
 
     @staticmethod
     def handle_exception(e):
@@ -49,24 +56,37 @@ class MyFrame(QtW.QFrame):
         super(MyFrame, self).__init__(parent)
         self.setFrameShape(QtW.QFrame.StyledPanel)
         self.parent = parent
-        layout = QtW.QVBoxLayout()
         self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
-        self.openFileButton = MyOpenNumpyButton(self.graph_view.update_graph)
-        self.toggleLogButton = MyToggleLogButton(self.graph_view.update_graph)
-        self.minMaxSpinboxes = MyMinMaxSpinboxes(self.graph_view.update_graph)
-        layout.addWidget(self.graph_view)
-        layout.addWidget(self.openFileButton)
-        layout.addWidget(self.toggleLogButton)
-        layout.addWidget(self.minMaxSpinboxes)
-        self.setLayout(layout)
-        
+       
 
     def resizeEvent(self, event):
         self.graph_view.setGeometry(self.rect())
+        return #resizeEvent
+    
+    def update_widgets(self):
+        self.minMaxSpinboxes.set_min_max(vmin = self.graph_view.data.zmin,
+                                         vmax = self.graph_view.data.zmax)
+        return #update_widgets
+
 
 class DataToPlot(object):
     def __init__(self):
         pass
+
+class MyGraphCommands(QtW.QWidget):
+    def __init__(self, callback, parent = None):
+        super(MyGraphCommands, self).__init__(parent)
+        self.openFileButton = MyOpenNumpyButton(callback)
+        self.toggleLogButton = MyToggleLogButton(callback)
+        self.minMaxSpinboxes = MyMinMaxSpinboxes(callback)
+        self.layout = QtW.QVBoxLayout()
+  
+        self.layout.addWidget(self.openFileButton)
+        self.layout.addWidget(self.toggleLogButton)
+        self.layout.addWidget(self.minMaxSpinboxes)
+        self.setLayout(self.layout)
+        return #__init__
+ 
 
 
 
@@ -96,10 +116,13 @@ class MyGraphView(QtW.QWidget):
 
         self.Title = QtW.QLabel(self)
         self.Title.setText(title)
+        self.commands = MyGraphCommands(self.update_graph)
 
         self.layout = QtW.QVBoxLayout()
         self.layout.addWidget(self.Title)
         self.layout.addWidget(self.canvas)
+        self.layout.addWidget(self.commands)
+
         self.layout.setStretchFactor(self.canvas, 1)
         self.setLayout(self.layout)
 
@@ -330,16 +353,24 @@ class MyMinMaxSpinboxes(QtW.QFrame):
         self.layout = QtW.QFormLayout()
         self.layout.addRow(QtW.QLabel("color min: "), self.minSpinbox)
         self.layout.addRow(QtW.QLabel("color max: "), self.maxSpinbox)
-        self.maxSpinbox.valueChanged.connect(self.on_val_change) # .connect(self.on_click)
-        self.minSpinbox.valueChanged.connect(self.on_val_change) # .connect(self.on_click)
+
+        self.maxSpinbox.editingFinished.connect(self.on_focus_out)
+        self.minSpinbox.editingFinished.connect(self.on_focus_out)
         self.callback = callback
         self.setLayout(self.layout)
-        return
+        return #__init__
 
     @pyqtSlot()
-    def on_val_change(self):
+    def on_focus_out(self):
             self.callback(zmax=self.maxSpinbox.value(), zmin=self.minSpinbox.value())
-            return None
+            return None #on_focus_out
+
+    def set_min_max(self, vmin = -1, vmax = 1):
+        self.minSpinbox.setValue(vmin)
+        self.maxSpinbox.setValue(vmax)
+        return #set_val
+
+
 
 
 if __name__ == "__main__":
