@@ -8,6 +8,7 @@ from matplotlib.widgets import RectangleSelector
 from mpl_toolkits.axes_grid.inset_locator import inset_axes
 import numpy as np
 import sys
+import os
 
 
 
@@ -203,6 +204,8 @@ class MyGraphView(QtW.QWidget):
 
     def on_mouse_move(self, event):
         x, y = event.xdata,event.ydata
+        if x is None or y is None:
+            return
         z = self.data.Z[int(y), int(x)]
         print('Mouse move:', x, y)
         self.xyzLabel.setText(f"(x, y; z) = ({x:3.2g}, {y:3.2g}; {z:3.2g})")
@@ -243,7 +246,7 @@ class MyGraphView(QtW.QWidget):
         self.ax.clear()
         self.cax.clear()
         self.zax.clear()
-        self.ax.set_title(self.params.title)
+        self.canvas.figure.suptitle(self.params.title)
 
         self.build_norm()
         self.build_imshow()
@@ -295,6 +298,7 @@ class MyGraphView(QtW.QWidget):
         print(self.norm.__dict__)
         return #build_imshow
 
+
     def build_cbar(self):
         cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
         cbar.set_clim(self.norm.vmin, self.norm.vmax)
@@ -323,15 +327,16 @@ class MyOpenNumpyButton(QtW.QPushButton):
 
     @pyqtSlot()
     def on_click(self):
-        options = QtW.QFileDialog.Options()
-        options |= QtW.QFileDialog.DontUseNativeDialog
-        fileName, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
-        if fileName:
-            Z = safe_parse_numpy(fileName)
-            self.callback(Z = Z, zmin = Z.min(), zmax = Z.max())
-            return None
-        else:
-            return None
+        try:
+            options = QtW.QFileDialog.Options()
+            options |= QtW.QFileDialog.DontUseNativeDialog
+            fileName, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
+            if fileName:
+                Z = safe_parse_numpy(fileName)
+                self.callback(Z = Z, zmin = Z.min(), zmax = Z.max(), title=os.path.split(fileName)[-1])
+        except Exception as e:
+            App.handle_exception(e)
+        return #on_click
 
 
 class MyToggleLogButton(QtW.QPushButton):
