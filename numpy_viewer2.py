@@ -56,7 +56,7 @@ class MyFrame(QtW.QFrame):
         super(MyFrame, self).__init__(parent)
         self.setFrameShape(QtW.QFrame.StyledPanel)
         self.parent = parent
-        self.graph_view = MyGraphView('myFrame', 'Numpy Array:', 'Visualization of 2d Numpy arrays', self)
+        self.graph_view = MyGraphView('GRAPH_TITLE', self)
 
 
     def resizeEvent(self, event):
@@ -95,10 +95,9 @@ class MyGraphCommands(QtW.QWidget):
 
 
 class MyGraphView(QtW.QWidget):
-    def __init__(self, name, title, graph_title, parent = None):
+    def __init__(self, graph_title, parent = None):
         super(MyGraphView, self).__init__(parent)
 
-        self.name = name
         self.graph_title = graph_title
 
         self.dpi = 100
@@ -117,12 +116,12 @@ class MyGraphView(QtW.QWidget):
         self.params = DataToPlot()
         self.init_data_and_parameters()
 
-        self.Title = QtW.QLabel(self)
-        self.Title.setText(title)
+        self.xyzLabel = QtW.QLabel(self)
+        self.xyzLabel.setText("")
         self.commands = MyGraphCommands(self.update_graph)
 
         self.layout = QtW.QVBoxLayout()
-        self.layout.addWidget(self.Title)
+        self.layout.addWidget(self.xyzLabel)
         self.layout.addWidget(self.canvas)
         self.layout.addWidget(self.commands)
 
@@ -133,6 +132,7 @@ class MyGraphView(QtW.QWidget):
         # connect mouse events to canvas
         self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
         self.canvas.mpl_connect('key_press_event', self.toggle_selector)
+        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
 
         self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus)
         self.canvas.setFocus()
@@ -201,6 +201,13 @@ class MyGraphView(QtW.QWidget):
             self.update_graph(zmin=vmin,zmax=vmax)
         return #on_mouse_wheel
 
+    def on_mouse_move(self, event):
+        x, y = event.xdata,event.ydata
+        z = self.data.Z[int(y), int(x)]
+        print('Mouse move:', x, y)
+        self.xyzLabel.setText(f"(x, y; z) = ({x:3.2g}, {y:3.2g}; {z:3.2g})")
+        return #on_mouse_move
+
 
     def line_select_callback(self, eclick, erelease):
         x1, y1 = int(eclick.xdata), int(eclick.ydata)
@@ -242,7 +249,6 @@ class MyGraphView(QtW.QWidget):
         self.build_imshow()
         self.build_cbar()
         print(self.params.__dict__)
-
 
         self.rs = RectangleSelector(self.ax, self.line_select_callback,
                                                 drawtype='box' , useblit=False,
