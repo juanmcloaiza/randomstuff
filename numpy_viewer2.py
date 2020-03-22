@@ -9,6 +9,7 @@ from mpl_toolkits.axes_grid.inset_locator import inset_axes
 import numpy as np
 import sys
 import os
+import traceback
 
 
 
@@ -104,14 +105,8 @@ class MyGraphView(QtW.QWidget):
         self.dpi = 100
         self.fig = Figure((10.0, 5.0), dpi = self.dpi, facecolor = (1,1,1), edgecolor = (0,0,0))
         self.canvas = FigureCanvas(self.fig)
-        self.canvas.setParent(self)
+        self.define_axes()
 
-        self.ax =  self.canvas.figure.add_axes([0.1,0.1,0.35,0.7])
-        self.zax = self.canvas.figure.add_axes([0.6,0.1,0.35,0.7])
-        self.cax = inset_axes(self.ax,
-                    width="90%", # width = 30% of parent_bbox
-                    height="5%", # height : 1 inch
-                    loc=9)
 
         self.data = DataToPlot()
         self.params = DataToPlot()
@@ -142,6 +137,20 @@ class MyGraphView(QtW.QWidget):
         self.canvas.draw()
         self.test_show()
         return #__init__()
+
+
+    def define_axes(self):
+        self.ax =  self.canvas.figure.add_axes([0.1,0.1,0.30,0.7])
+        self.cax = self.canvas.figure.add_axes([0.505,0.1,0.025,0.7])
+        #inset_axes(self.ax,
+        #            width="90%", # width = 30% of parent_bbox
+        #            height="5%", # height : 1 inch
+        #            loc=9)
+
+        self.zoom_ax = self.canvas.figure.add_axes([0.55,0.25,0.25,0.5])
+        self.xax = self.canvas.figure.add_axes([0.55,0.1,0.25,0.1]) 
+        self.yax = self.canvas.figure.add_axes([0.85,0.25,0.05,0.5]) 
+        return #define_axes
 
 
 
@@ -245,7 +254,9 @@ class MyGraphView(QtW.QWidget):
         self.commands.update_widgets(**self.params.__dict__)
         self.ax.clear()
         self.cax.clear()
-        self.zax.clear()
+        self.zoom_ax.clear()
+        self.xax.clear()
+        self.yax.clear()
         self.canvas.figure.suptitle(self.params.title)
 
         self.build_norm()
@@ -275,6 +286,8 @@ class MyGraphView(QtW.QWidget):
         if self.params.log_scale:
             self.take_care_of_negative_values()
             self.norm = mpl.colors.LogNorm(vmin=self.params.zmin, vmax=self.params.zmax)
+            self.xax.set_yscale('log')
+            self.yax.set_xscale('log')
         else:
             self.norm = mpl.colors.Normalize(vmin=self.params.zmin, vmax=self.params.zmax)
         return #build_norm
@@ -290,8 +303,40 @@ class MyGraphView(QtW.QWidget):
 
     def build_imshow(self):
         self.ax_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
-        self.zax_imshow = self.zax.imshow(self.data.Zzoom, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax,
+        self.zoom_ax_imshow = self.zoom_ax.imshow(self.data.Zzoom, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax,
                                             extent=[self.data.x1, self.data.x2, self.data.y2, self.data.y1])
+        self.zoom_ax.set_aspect("auto")
+
+
+
+        integration_x = self.data.Zzoom.sum(axis=0)
+        rangex = np.linspace(self.data.x1, self.data.x2, len(integration_x)) 
+        integration_y =  self.data.Zzoom.sum(axis=1)
+        rangey = np.linspace(self.data.y2, self.data.y1, len(integration_y)) 
+
+
+        self.xax_line = self.xax.plot(rangex, integration_x)
+        self.yax_line = self.yax.plot(np.flip(integration_y, axis=0), rangey)
+
+        self.zoom_ax.set_xticks([])
+        self.zoom_ax.set_yticks([])
+
+        self.xax.set_xlim((self.data.x1, self.data.x2))
+        self.xax.xaxis.set_ticks(np.floor(np.linspace(self.data.x1, self.data.x2, 5)))
+        self.xax.set_yticks(np.linspace(integration_x.min(), integration_x.max(), 3))
+        #self.xax.locator_params(axis='y', numticks=3)
+        self.xax.yaxis.tick_right()
+        self.xax.grid(which='both', axis='both')#, xdata=rangex)
+
+        self.yax.set_ylim((self.data.y2, self.data.y1))
+        self.yax.set_yticks(np.floor(np.linspace(self.data.y2, self.data.y1, 5)))
+        self.yax.set_xticks(np.linspace(integration_y.min(), integration_y.max(), 3))
+        #self.yax.locator_params(axis='x', numticks=3)
+        self.yax.yaxis.tick_right()
+        self.yax.xaxis.tick_top()
+        self.yax.tick_params(axis='x', labelrotation=90)
+        self.yax.grid(which='both', axis='both')#, xdata=rangex)
+
         print("Norm:")
         print(self.norm.vmin)
         print(self.norm.vmax)
@@ -300,7 +345,9 @@ class MyGraphView(QtW.QWidget):
 
 
     def build_cbar(self):
-        cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='horizontal', norm = self.norm)
+        cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='vertical', norm = self.norm)
+        self.cax.tick_params(axis='y', direction='in')
+        self.cax.yaxis.tick_left()
         cbar.set_clim(self.norm.vmin, self.norm.vmax)
         self.cbar = cbar
         return #build_cbar
@@ -350,20 +397,26 @@ class MyToggleLogButton(QtW.QPushButton):
 
     @pyqtSlot()
     def on_click(self):
+        try:
             self.toggle_on = not self.toggle_on
             self.callback(log_scale = self.toggle_on, reset_limits_required=True)
-            return None
+        except Exception as e:
+            App.handle_exception(e)
+        return #on_click
 
 
 class MyMinMaxSpinboxes(QtW.QFrame):
     def __init__(self, callback, parent=None):
         super(MyMinMaxSpinboxes, self).__init__(parent)
         self.maxSpinbox = QtW.QDoubleSpinBox()
-        self.minSpinbox = QtW.QDoubleSpinBox()
         self.maxSpinbox.setMaximum(np.inf)
         self.maxSpinbox.setMinimum(-np.inf)
+        self.maxSpinbox.setDecimals(10)
+
+        self.minSpinbox = QtW.QDoubleSpinBox()
         self.minSpinbox.setMaximum(np.inf)
         self.minSpinbox.setMinimum(-np.inf)
+        self.minSpinbox.setDecimals(10)
         self.layout = QtW.QFormLayout()
         self.layout.addRow(QtW.QLabel("color min: "), self.minSpinbox)
         self.layout.addRow(QtW.QLabel("color max: "), self.maxSpinbox)
