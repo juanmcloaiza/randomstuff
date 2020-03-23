@@ -12,7 +12,6 @@ import os
 import traceback
 
 
-
 def safe_parse_numpy(file_path):
         try:
             nparray = np.load(file_path)
@@ -96,6 +95,30 @@ class MyGraphCommands(QtW.QWidget):
         return #update_widgets
 
 
+class AreaSelector(object):
+    def __init__(self, ax, line_select_callback):
+        self.ax = ax
+        self.rs = RectangleSelector(ax, line_select_callback,
+                                                drawtype='box' , useblit=False,
+                                                button=[1, 3],  # don't use middle button
+                                                minspanx=0, minspany=0,
+                                                spancoords='pixels',
+                                                interactive=True)
+
+
+    def __call__(self, event):
+        self.rs.update()
+        if self.ax == event.inaxes:
+            if event.key in ['Q', 'q']:
+                self.rs.to_draw.set_visible(False)
+                self.rs.set_active(False)
+            if event.key in ['A', 'a']:
+                self.rs.to_draw.set_visible(True)
+                self.rs.set_active(True)
+
+        return #__call__
+
+
 class MyGraphView(QtW.QWidget):
     def __init__(self, graph_title, parent = None):
         super(MyGraphView, self).__init__(parent)
@@ -107,54 +130,56 @@ class MyGraphView(QtW.QWidget):
         self.canvas = FigureCanvas(self.fig)
         self.define_axes()
 
-
-        self.data = DataToPlot()
-        self.params = DataToPlot()
         self.init_data_and_parameters()
-
-        self.xyzLabel = QtW.QLabel(self)
-        self.xyzLabel.setText("")
+        self.init_xyzLabel()
         self.commands = MyGraphCommands(self.update_graph)
-
-        self.layout = QtW.QVBoxLayout()
-        self.layout.addWidget(self.xyzLabel)
-        self.layout.addWidget(self.canvas)
-        self.layout.addWidget(self.commands)
-
-        self.layout.setStretchFactor(self.canvas, 1)
-        self.setLayout(self.layout)
-
-
-        # connect mouse events to canvas
-        self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
-        self.canvas.mpl_connect('key_press_event', self.toggle_selector)
-        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
-
-        self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus)
-        self.canvas.setFocus()
-
-
+        self.define_layout()
+        self.area_selector = AreaSelector(self.ax, self.line_select_callback)
+        self.init_canvas_connections()
         self.canvas.draw()
         self.test_show()
         return #__init__()
 
 
+    def init_xyzLabel(self):
+        self.xyzLabel = QtW.QLabel(self)
+        self.xyzLabel.setText("")
+        return #init_xyzLabel
+
+
+    def define_layout(self):
+        self.layout = QtW.QVBoxLayout()
+        self.layout.addWidget(self.xyzLabel)
+        self.layout.addWidget(self.canvas)
+        self.layout.addWidget(self.commands)
+        self.layout.setStretchFactor(self.canvas, 1)
+        self.setLayout(self.layout)
+        return #define_layout
+
+
     def define_axes(self):
         self.ax =  self.canvas.figure.add_axes([0.1,0.1,0.30,0.7])
         self.cax = self.canvas.figure.add_axes([0.505,0.1,0.025,0.7])
-        #inset_axes(self.ax,
-        #            width="90%", # width = 30% of parent_bbox
-        #            height="5%", # height : 1 inch
-        #            loc=9)
-
         self.zoom_ax = self.canvas.figure.add_axes([0.55,0.25,0.25,0.5])
-        self.xax = self.canvas.figure.add_axes([0.55,0.1,0.25,0.1]) 
-        self.yax = self.canvas.figure.add_axes([0.85,0.25,0.05,0.5]) 
+        self.xax = self.canvas.figure.add_axes([0.55,0.1,0.25,0.1])
+        self.yax = self.canvas.figure.add_axes([0.85,0.25,0.05,0.5])
         return #define_axes
 
 
+    def init_canvas_connections(self):
+        # connect mouse events to canvas
+        self.canvas.mpl_connect('scroll_event', self.on_mouse_wheel)
+        self.canvas.mpl_connect('key_press_event', self.area_selector)
+        self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
+        #self.canvas.mpl_connect('draw_event', self.area_selector.mycallback)
+        self.canvas.setFocusPolicy( QtCore.Qt.ClickFocus)
+        self.canvas.setFocus()
+        return #init_canvas_connections
+
 
     def init_data_and_parameters(self):
+        self.data = DataToPlot()
+
         self.data.X = np.zeros((10,10))
         self.data.Y = np.zeros((10,10))
         self.data.Z = np.zeros((10,10))
@@ -165,9 +190,9 @@ class MyGraphView(QtW.QWidget):
         self.data.y1 = 0
         self.data.y2 = 10
 
+        self.params = DataToPlot()
         self.params.xmin = -1
         self.params.xmax = 1
-
         self.params.ymin = -1
         self.params.ymax = 1
 
@@ -181,42 +206,26 @@ class MyGraphView(QtW.QWidget):
         return #init_data_and_parameters
 
 
-    def toggle_selector(self, event):
-        print(' Key pressed.')
-        if event.key in ['Q', 'q']:
-            print('key Q')
-            self.rs.to_draw.set_visible(False)
-            self.canvas.draw()
-        if event.key in ['A', 'a']:
-            print('key A')
-            self.rs.to_draw.set_visible(True)
-            self.canvas.draw()
-        return #toggle_selector
-
-
     def on_mouse_wheel(self, event):
-        print('Mouse wheel')
         if self.cax == event.inaxes:
             if event.button == 'up':
-                print("up")
                 func = lambda c: c**0.9 if self.params.log_scale else 0.9*c
             elif event.button == 'down':
-                print("down")
                 func = lambda c: c**1.1 if self.params.log_scale else 1.1*c
             else:
-                print(event.button)
                 return
 
             vmin, vmax = (func(c) for c in self.cbar.get_clim())
-            self.update_graph(zmin=vmin,zmax=vmax)
+            print(vmin,vmax)
+            self.update_graph(zmin=vmin, zmax=vmax)
         return #on_mouse_wheel
+
 
     def on_mouse_move(self, event):
         x, y = event.xdata,event.ydata
         if x is None or y is None:
             return
         z = self.data.Z[int(y), int(x)]
-        print('Mouse move:', x, y)
         self.xyzLabel.setText(f"(x, y; z) = ({x:3.2g}, {y:3.2g}; {z:3.2g})")
         return #on_mouse_move
 
@@ -226,13 +235,9 @@ class MyGraphView(QtW.QWidget):
         x2, y2 = int(erelease.xdata), int(erelease.ydata)
         print("(%3.2f, %3.2f) --> (%3.2f, %3.2f)" % (x1, y1, x2, y2))
         print(" The button you used were: %s %s" % (eclick.button, erelease.button))
-        Zzoom = self.data.Z[y1:y2,x1:x2]
-        self.update_graph(x1=x1, x2=x2, y1=y1, y2=y2, Zzoom = Zzoom)
-        #self.x1, self.x2, self.y1, self.y2 = x1, x2, y1, y2
-        #Z = self.data.Z
-        #floor = int
-        #self.ax1.plot(Z[floor(x1):floor(x2),floor(y1):floor(y2)].sum(axis=1))
-        #self.ax2.plot((x1, x2), (y1,y2))
+
+
+        self.update_graph(x1=x1, x2=x2, y1=y1, y2=y2)
         return #line_select_callback
 
 
@@ -247,47 +252,41 @@ class MyGraphView(QtW.QWidget):
             if k in kwargs.keys():
                 self.params.__setattr__(k,kwargs[k])
 
+        if self.params.reset_limits_required:
+            self.params.zmin = self.data.Z.min()
+            self.params.zmax = self.data.Z.max()
+            self.params.reset_limits_required = False
+        return #update_params
+
+
+    def update_axes(self, **kwargs):
+        self.update_ax(**kwargs)
+        self.update_cax()
+        self.update_zoom_ax()
+        self.update_xax()
+        self.update_yax()
+        return #update_axes
+
+       
 
     def update_graph(self, **kwargs):
         self.update_data(**kwargs)
         self.update_params(**kwargs)
-        self.commands.update_widgets(**self.params.__dict__)
-        self.ax.clear()
-        self.cax.clear()
-        self.zoom_ax.clear()
-        self.xax.clear()
-        self.yax.clear()
+        self.commands.update_widgets(**kwargs)#self.params.__dict__)
+        self.build_norm(**kwargs)
+        self.update_axes(**kwargs)
         self.canvas.figure.suptitle(self.params.title)
-
-        self.build_norm()
-        self.build_imshow()
-        self.build_cbar()
-        print(self.params.__dict__)
-
-        self.rs = RectangleSelector(self.ax, self.line_select_callback,
-                                                drawtype='box' , useblit=False,
-                                                button=[1, 3],  # don't use middle button
-                                                minspanx=0, minspany=0,
-                                                spancoords='pixels',
-                                                interactive=True)
-
         self.canvas.draw()
+        print(self.params.__dict__)
         #cont_x = self.ax.contour(X,colors='k', linestyles='solid')
         #cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         return
 
 
-    def build_norm(self):
-        if self.params.reset_limits_required:
-            self.params.zmin = self.data.Z.min()
-            self.params.zmax = self.data.Z.max()
-            self.params.reset_limits_required = False
-
+    def build_norm(self, **kwargs):
         if self.params.log_scale:
             self.take_care_of_negative_values()
             self.norm = mpl.colors.LogNorm(vmin=self.params.zmin, vmax=self.params.zmax)
-            self.xax.set_yscale('log')
-            self.yax.set_xscale('log')
         else:
             self.norm = mpl.colors.Normalize(vmin=self.params.zmin, vmax=self.params.zmax)
         return #build_norm
@@ -301,32 +300,54 @@ class MyGraphView(QtW.QWidget):
         return #take_care_of_negative_values
 
 
-    def build_imshow(self):
+    def update_ax(self, **kwargs):
+        #self.ax.clear()
         self.ax_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
+        self.area_selector.rs.update()
+        return #update_ax
+
+    def update_cax(self):
+        self.cax.clear()
+        self.build_cbar()
+        return #update_cax
+
+    def update_zoom_ax(self):
+        self.zoom_ax.clear()
+        x1, x2 = self.data.x1, self.data.x2
+        y1, y2 = self.data.y1, self.data.y2
+        self.data.Zzoom = self.data.Z[y1:y2,x1:x2]
         self.zoom_ax_imshow = self.zoom_ax.imshow(self.data.Zzoom, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax,
-                                            extent=[self.data.x1, self.data.x2, self.data.y2, self.data.y1])
+                                            extent=[x1, x2, y2, y1])
         self.zoom_ax.set_aspect("auto")
-
-
-
-        integration_x = self.data.Zzoom.sum(axis=0)
-        rangex = np.linspace(self.data.x1, self.data.x2, len(integration_x)) 
-        integration_y =  self.data.Zzoom.sum(axis=1)
-        rangey = np.linspace(self.data.y2, self.data.y1, len(integration_y)) 
-
-
-        self.xax_line = self.xax.plot(rangex, integration_x)
-        self.yax_line = self.yax.plot(np.flip(integration_y, axis=0), rangey)
-
         self.zoom_ax.set_xticks([])
         self.zoom_ax.set_yticks([])
+        return #update_zoom_ax
 
+
+    def update_xax(self):
+        self.xax.clear()
+        if self.params.log_scale:
+            self.xax.set_yscale('log')
+
+        integration_x = self.data.Zzoom.sum(axis=0)
+        rangex = np.linspace(self.data.x1, self.data.x2, len(integration_x))
+        self.xax_line = self.xax.plot(rangex, integration_x)
         self.xax.set_xlim((self.data.x1, self.data.x2))
         self.xax.xaxis.set_ticks(np.floor(np.linspace(self.data.x1, self.data.x2, 5)))
         self.xax.set_yticks(np.linspace(integration_x.min(), integration_x.max(), 3))
-        #self.xax.locator_params(axis='y', numticks=3)
         self.xax.yaxis.tick_right()
         self.xax.grid(which='both', axis='both')#, xdata=rangex)
+        return #update_xax
+
+
+    def update_yax(self):
+        self.yax.clear()
+        if self.params.log_scale:
+            self.yax.set_xscale('log')
+
+        integration_y =  self.data.Zzoom.sum(axis=1)
+        rangey = np.linspace(self.data.y2, self.data.y1, len(integration_y))
+        self.yax_line = self.yax.plot(np.flip(integration_y, axis=0), rangey)
 
         self.yax.set_ylim((self.data.y2, self.data.y1))
         self.yax.set_yticks(np.floor(np.linspace(self.data.y2, self.data.y1, 5)))
@@ -336,12 +357,7 @@ class MyGraphView(QtW.QWidget):
         self.yax.xaxis.tick_top()
         self.yax.tick_params(axis='x', labelrotation=90)
         self.yax.grid(which='both', axis='both')#, xdata=rangex)
-
-        print("Norm:")
-        print(self.norm.vmin)
-        print(self.norm.vmax)
-        print(self.norm.__dict__)
-        return #build_imshow
+        return #update_yax
 
 
     def build_cbar(self):
