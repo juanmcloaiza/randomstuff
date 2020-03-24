@@ -23,6 +23,17 @@ def safe_parse_numpy(file_path):
             return None
 
 
+def safe_parse_txt(file_path):
+        try:
+            nparray = np.loadtxt(file_path)
+            print(f"{file_path}:")
+            print(f"Loaded array with shape: {nparray.shape}")
+            return nparray
+        except Exception as e:
+            App.handle_exception(e)
+            return None
+
+
 class App(QtW.QMainWindow):
     def __init__(self, parent=None):
         super(App, self).__init__(parent)
@@ -296,6 +307,8 @@ class MyGraphView(QtW.QWidget):
             extension = os.path.splitext(filePath)[-1]
             if extension in [".png", ".pdf"]:
                 self.canvas.figure.savefig(filePath)
+            elif extension in [".txt"]:
+                np.savetxt(filePath,self.data.Z)
             else:
                 raise NotImplementedError
         return
@@ -401,6 +414,7 @@ class MyGraphView(QtW.QWidget):
         Z = np.sin(X) * np.cos(Y)
         self.update_graph(Z = Z)
         np.save("./myNumpyArray.npy", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
+        np.savetxt("./myNumpyArray.txt", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         return
 
 
@@ -417,10 +431,16 @@ class MyOpenNumpyButton(QtW.QPushButton):
         try:
             options = QtW.QFileDialog.Options()
             options |= QtW.QFileDialog.DontUseNativeDialog
-            fileName, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
-            if fileName:
-                Z = safe_parse_numpy(fileName)
-                self.callback(Z = Z, zmin = Z.min(), zmax = Z.max(), title=os.path.split(fileName)[-1])
+            filePath, _ = QtW.QFileDialog.getOpenFileName(self, "QFileDialog.getOpenFileName()", "","Numpy array (*.npy);;All Files (*)", options=options)
+            if filePath:
+                extension = os.path.splitext(filePath)[-1]
+                if extension == ".npy":
+                    Z = safe_parse_numpy(filePath)
+                elif extension == ".txt":
+                    Z = safe_parse_txt(filePath)
+                else:
+                    raise NotImplementedError("Loading only available for files with extension .npy or .txt")
+                self.callback(Z = Z, zmin = Z.min(), zmax = Z.max(), title=os.path.split(filePath)[-1])
         except Exception as e:
             App.handle_exception(e)
         return #on_click
@@ -432,6 +452,11 @@ class MySaveAsButton(QtW.QPushButton):
         self.setText("Save Figure as...")
         self.clicked.connect(self.on_click)
         self.callback = callback
+        self.fmt_choices = {"All Files(*)":".png", #default
+                            "png (*.png)":".png",
+                            "pdf (*.pdf)": ".pdf",
+                            "ascii (*.txt)": ".txt"}
+        self.choices_str = ";;".join([]+[k for k in self.fmt_choices.keys()])
         return
 
     @pyqtSlot()
@@ -439,10 +464,14 @@ class MySaveAsButton(QtW.QPushButton):
         try:
             options = QtW.QFileDialog.Options()
             options |= QtW.QFileDialog.DontUseNativeDialog
-            filePath, _ = QtW.QFileDialog.getSaveFileName(self,"Save File", "",
-                                                          "All Files (*);;png (*.png);;pdf (*.pdf);;ascii (.txt)", options=options)
+            filePath, fmtChoice = QtW.QFileDialog.getSaveFileName(self,"Save File", "",
+                                                          self.choices_str, options=options)
             if filePath:
                 extension = os.path.splitext(filePath)[-1]
+                if extension not in self.fmt_choices.values():
+                    extension = self.fmt_choices[fmtChoice]
+                    filePath+=extension
+
                 if extension not in [".png", ".pdf", ".txt"]:
                     filePath += ".png"
                 self.callback(save_to_file=filePath)
@@ -450,7 +479,6 @@ class MySaveAsButton(QtW.QPushButton):
         except Exception as e:
             App.handle_exception(e)
         return #on_click
-
 
 
 class MyToggleLogButton(QtW.QPushButton):
