@@ -134,7 +134,6 @@ class MyGraphView(QtW.QWidget):
         self.init_xyzLabel()
         self.commands = MyGraphCommands(self.update_graph)
         self.define_layout()
-        self.area_selector = AreaSelector(self.ax, self.line_select_callback)
         self.init_canvas_connections()
         self.canvas.draw()
         self.test_show()
@@ -163,6 +162,7 @@ class MyGraphView(QtW.QWidget):
         self.zoom_ax = self.canvas.figure.add_axes([0.55,0.25,0.25,0.5])
         self.xax = self.canvas.figure.add_axes([0.55,0.1,0.25,0.1])
         self.yax = self.canvas.figure.add_axes([0.85,0.25,0.05,0.5])
+        self.area_selector = AreaSelector(self.ax, self.line_select_callback)
         return #define_axes
 
 
@@ -267,14 +267,16 @@ class MyGraphView(QtW.QWidget):
         self.update_yax()
         return #update_axes
 
-       
 
     def update_graph(self, **kwargs):
+        self.canvas.figure.clear()
+        self.define_axes()
         self.update_data(**kwargs)
         self.update_params(**kwargs)
-        self.commands.update_widgets(**kwargs)#self.params.__dict__)
+        self.commands.update_widgets(**self.params.__dict__)
         self.build_norm(**kwargs)
         self.update_axes(**kwargs)
+        self.update_area_selector(**kwargs)
         self.canvas.figure.suptitle(self.params.title)
         self.canvas.draw()
         print(self.params.__dict__)
@@ -301,18 +303,22 @@ class MyGraphView(QtW.QWidget):
 
 
     def update_ax(self, **kwargs):
-        #self.ax.clear()
         self.ax_imshow = self.ax.imshow(self.data.Z, norm=self.norm, vmin=self.norm.vmin, vmax=self.norm.vmax)
-        self.area_selector.rs.update()
         return #update_ax
 
+
+    def update_area_selector(self, **kwargs):
+        self.area_selector.rs.to_draw.set_visible(True)
+        self.area_selector.rs.extents = (self.data.x1, self.data.x2, self.data.y1, self.data.y2)
+        #self.area_selector.rs.update()
+        return #update_area_selector
+
+
     def update_cax(self):
-        self.cax.clear()
         self.build_cbar()
         return #update_cax
 
     def update_zoom_ax(self):
-        self.zoom_ax.clear()
         x1, x2 = self.data.x1, self.data.x2
         y1, y2 = self.data.y1, self.data.y2
         self.data.Zzoom = self.data.Z[y1:y2,x1:x2]
@@ -325,7 +331,6 @@ class MyGraphView(QtW.QWidget):
 
 
     def update_xax(self):
-        self.xax.clear()
         if self.params.log_scale:
             self.xax.set_yscale('log')
 
@@ -341,7 +346,6 @@ class MyGraphView(QtW.QWidget):
 
 
     def update_yax(self):
-        self.yax.clear()
         if self.params.log_scale:
             self.yax.set_xscale('log')
 
@@ -361,11 +365,10 @@ class MyGraphView(QtW.QWidget):
 
 
     def build_cbar(self):
-        cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='vertical', norm = self.norm)
+        self.cbar = self.canvas.figure.colorbar(self.ax_imshow, cax=self.cax, orientation='vertical', norm = self.norm)
         self.cax.tick_params(axis='y', direction='in')
         self.cax.yaxis.tick_left()
-        cbar.set_clim(self.norm.vmin, self.norm.vmax)
-        self.cbar = cbar
+        self.cbar.set_clim(self.norm.vmin, self.norm.vmax)
         return #build_cbar
 
 
