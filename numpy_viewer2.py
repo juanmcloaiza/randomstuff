@@ -75,12 +75,15 @@ class MyGraphCommands(QtW.QWidget):
         self.openFileButton = MyOpenNumpyButton(callback)
         self.toggleLogButton = MyToggleLogButton(callback)
         self.minMaxSpinboxes = MyMinMaxSpinboxes(callback)
+        self.saveAsButton = MySaveAsButton(callback)
 
         self.layout = QtW.QVBoxLayout()
         self.layout.addWidget(self.openFileButton)
         self.layout.addWidget(self.toggleLogButton)
         self.layout.addWidget(self.minMaxSpinboxes)
+        self.layout.addWidget(self.saveAsButton)
         self.setLayout(self.layout)
+
         return #__init__
 
 
@@ -279,11 +282,23 @@ class MyGraphView(QtW.QWidget):
         self.update_area_selector(**kwargs)
         self.canvas.figure.suptitle(self.params.title)
         self.canvas.draw()
+        self.save(**kwargs)
         print(self.params.__dict__)
         #cont_x = self.ax.contour(X,colors='k', linestyles='solid')
         #cont_y = self.ax.contour(Y,colors='k', linestyles='solid')
         return
 
+
+    def save(self, **kwargs):
+        savekey = "save_to_file"
+        if savekey in kwargs.keys():
+            filePath = kwargs[savekey]
+            extension = os.path.splitext(filePath)[-1]
+            if extension in [".png", ".pdf"]:
+                self.canvas.figure.savefig(filePath)
+            else:
+                raise NotImplementedError
+        return
 
     def build_norm(self, **kwargs):
         if self.params.log_scale:
@@ -339,7 +354,10 @@ class MyGraphView(QtW.QWidget):
         self.xax_line = self.xax.plot(rangex, integration_x)
         self.xax.set_xlim((self.data.x1, self.data.x2))
         self.xax.xaxis.set_ticks(np.floor(np.linspace(self.data.x1, self.data.x2, 5)))
-        self.xax.set_yticks(np.linspace(integration_x.min(), integration_x.max(), 3))
+        zero = integration_x.min()
+        mu =  integration_x.mean()
+        sig = integration_x.std()
+        self.xax.set_yticks([zero, mu, mu+2*sig])
         self.xax.yaxis.tick_right()
         self.xax.grid(which='both', axis='both')#, xdata=rangex)
         return #update_xax
@@ -355,11 +373,14 @@ class MyGraphView(QtW.QWidget):
 
         self.yax.set_ylim((self.data.y2, self.data.y1))
         self.yax.set_yticks(np.floor(np.linspace(self.data.y2, self.data.y1, 5)))
-        self.yax.set_xticks(np.linspace(integration_y.min(), integration_y.max(), 3))
+        zero = integration_y.min()
+        mu =  integration_y.mean()
+        sig = integration_y.std()
+        self.yax.set_xticks([zero, mu, mu+2*sig])
         #self.yax.locator_params(axis='x', numticks=3)
         self.yax.yaxis.tick_right()
         self.yax.xaxis.tick_top()
-        self.yax.tick_params(axis='x', labelrotation=90)
+        self.yax.tick_params(axis='x', labelrotation=270)
         self.yax.grid(which='both', axis='both')#, xdata=rangex)
         return #update_yax
 
@@ -403,6 +424,33 @@ class MyOpenNumpyButton(QtW.QPushButton):
         except Exception as e:
             App.handle_exception(e)
         return #on_click
+
+
+class MySaveAsButton(QtW.QPushButton):
+    def __init__(self, callback, parent=None):
+        super(MySaveAsButton, self).__init__(parent)
+        self.setText("Save Figure as...")
+        self.clicked.connect(self.on_click)
+        self.callback = callback
+        return
+
+    @pyqtSlot()
+    def on_click(self):
+        try:
+            options = QtW.QFileDialog.Options()
+            options |= QtW.QFileDialog.DontUseNativeDialog
+            filePath, _ = QtW.QFileDialog.getSaveFileName(self,"Save File", "",
+                                                          "All Files (*);;png (*.png);;pdf (*.pdf);;ascii (.txt)", options=options)
+            if filePath:
+                extension = os.path.splitext(filePath)[-1]
+                if extension not in [".png", ".pdf", ".txt"]:
+                    filePath += ".png"
+                self.callback(save_to_file=filePath)
+
+        except Exception as e:
+            App.handle_exception(e)
+        return #on_click
+
 
 
 class MyToggleLogButton(QtW.QPushButton):
