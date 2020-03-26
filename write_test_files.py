@@ -35,7 +35,7 @@ def filepath_to_save_test(dir_name = ".", base_filename = "test_file", suffix = 
 
 
 def generate_mock_data(nfringes = 1, shift = 0):
-    qvals = np.flip(np.linspace(2*np.pi,0,32, endpoint=False))
+    qvals = np.flip(np.linspace(2*np.pi,0,32, endpoint=False), axis=0)
     qh = (qvals[1] - qvals[0])
     rvals =  qvals**(-4) * (1.01 - np.cos(nfringes * qvals))
     rvals *= (10**shift)/rvals[0]
