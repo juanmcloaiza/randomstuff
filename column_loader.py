@@ -322,6 +322,19 @@ class Experiment(FrozenClass):
 
         return
 
+class MyInfoTable(qtw.QTableWidget, FrozenClass):
+    def __init__(self):
+        super().__init__()
+        self.col = dict()
+        self.setColumnCount(4)
+        labels = ("Q", "R", "dR", "dQ")
+        for i, l in enumerate(labels):
+            self.col[l] = i
+        self.setHorizontalHeaderLabels(labels)
+        self.horizontalHeader().setSectionsMovable(True)
+        self._freeze()
+        return
+
 
 class MyFrame(qtw.QFrame,FrozenClass):
 
@@ -336,7 +349,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
         self.minSpinBox = qtw.QDoubleSpinBox()
         self.maxSpinBox = qtw.QDoubleSpinBox()
         self.graphView = MyGraphView("Title")
-        self.infoTable = qtw.QTableWidget()
+        self.infoTable = MyInfoTable()
         self.fileList = qtw.QListWidget()
         self.tabs = qtw.QTabWidget()
         self.initFrame()
@@ -430,8 +443,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
     def addExperimentInfo(self):
         self.infoTable.setMinimumWidth(640./3.)
-        self.infoTable.setColumnCount(4)
-        self.infoTable.setHorizontalHeaderLabels(("Q", "R", "dR", "dQ"))
+        self.infoTable.horizontalHeader().sectionMoved.connect(self.on_section_moved)
         self.rightpanel.addWidget(qtw.QLabel("Loaded data:"))
         self.rightpanel.addWidget(self.infoTable)
         return
@@ -507,7 +519,8 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
     def read_data_file(self):
         # Open and read the dat file
-        dataFilePath = self.openFileNameDialog()
+        #dataFilePath = self.openFileNameDialog()
+        dataFilePath = str("C:/Users/juanm/Documents//randomstuff//testfiles/shift_6//nfringes_5.out")
         if dataFilePath:
             path, filename = os.path.split(dataFilePath)
             self.settings.dataFileName = filename
@@ -552,25 +565,69 @@ class MyFrame(qtw.QFrame,FrozenClass):
         r = self.experiment.R
         dr = self.experiment.dR
         dq = self.experiment.dQ
+
+        qcol = self.infoTable.col["Q"]
+        rcol = self.infoTable.col["R"]
+        dqcol = self.infoTable.col["dQ"]
+        drcol = self.infoTable.col["dR"]
+        self.infoTable.setRowCount(0)
+
         for i in range(len(q)):
             qi = qtw.QTableWidgetItem(str(q[i]))
             ri = qtw.QTableWidgetItem(str(r[i]))
             dri = qtw.QTableWidgetItem(str(dr[i]))
             dqi = qtw.QTableWidgetItem(str(dq[i]))
             self.infoTable.insertRow(i)
-            self.infoTable.setItem(i,0,qi)
-            self.infoTable.setItem(i,1,ri)
-            self.infoTable.setItem(i,2,dri)
-            self.infoTable.setItem(i,3,dqi)
-
-
-            #self.infoTable.setVerticalHeaderItem(i,item_k)
-            #self.infoTable.setItem(i,0,item_v)
+            Qc = self.infoTable.horizontalHeader().logicalIndex(qcol)
+            Rc = self.infoTable.horizontalHeader().logicalIndex(rcol)
+            dRc = self.infoTable.horizontalHeader().logicalIndex(drcol)
+            dQc = self.infoTable.horizontalHeader().logicalIndex(dqcol)
+            self.infoTable.setItem(i,Qc,qi)
+            self.infoTable.setItem(i,Rc,ri)
+            self.infoTable.setItem(i,dRc,dri)
+            self.infoTable.setItem(i,dQc,dqi)
 
         self.minSpinBox.setValue(self.graphView.params.zmin)
         self.maxSpinBox.setValue(self.graphView.params.zmax)
 
         return True
+
+
+    @pyqtSlot()
+    def on_section_moved(self):
+        q_r_dr_dq_dict = {self.infoTable.col["Q"]: self.experiment.Q,
+                          self.infoTable.col["R"]: self.experiment.R,
+                          self.infoTable.col["dR"]: self.experiment.dR,
+                          self.infoTable.col["dQ"]: self.experiment.dQ}
+
+        new_labels = []
+        t = self.infoTable
+        h = self.infoTable.horizontalHeader()
+        for c in range(t.columnCount()):
+            it = self.infoTable.horizontalHeaderItem(h.logicalIndex(c))
+            new_labels.append(it.text())
+
+        new_col = {}
+        for i in range(len(new_labels)):
+            new_col[new_labels[i]] = i
+
+        q = q_r_dr_dq_dict[new_col["Q"]] 
+        r = q_r_dr_dq_dict[new_col["R"]] 
+        dr = q_r_dr_dq_dict[new_col["dR"]] 
+        dq = q_r_dr_dq_dict[new_col["dQ"]] 
+
+        self.experiment.Q = q
+        self.experiment.R = r
+        self.experiment.dR = dr
+        self.experiment.dQ = dq
+
+        for l in new_labels:
+            self.infoTable.col[l] = new_col[l]
+
+        self.update_gui()
+
+        return
+
 
 
     @pyqtSlot()
