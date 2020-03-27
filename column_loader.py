@@ -12,6 +12,12 @@ import os
 import re
 import traceback
 
+if hasattr(QtCore.Qt, 'AA_EnableHighDpiScaling'):
+    qtw.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+
+if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
+    qtw.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+
 
 def safe_parse(parse_func, file_path):
     try:
@@ -76,7 +82,7 @@ class PlotParams(FrozenClass):
         self.zmin = -1
         self.zmax = 1
 
-        self.log_scale = False
+        self.log_scale = True
         self.reset_limits_required = True
 
         self.title = ""
@@ -246,7 +252,7 @@ class MyGraphView(qtw.QWidget):
         self.ax_line = self.ax.errorbar(self.data.X, self.data.Z, yerr=self.data.Zerr, xerr=self.data.Xerr, ecolor='C0', alpha = 1)
         self.ax.set_xlim((self.data.X.min(), self.data.X.max()))
         if self.params.log_scale:
-            self.ax.set_yscale("symlog")
+            self.ax.set_yscale("log")
 
         return #update_ax
 
@@ -268,15 +274,15 @@ class MyGraphView(qtw.QWidget):
         self.zoom_ax.set_aspect("auto")
 
         if self.params.log_scale:
-            self.zoom_ax.set_yscale("symlog")
+            self.zoom_ax.set_yscale("log")
         return #update_zoom_ax
 
 
     def test_show(self):
         X = np.linspace(-np.pi,np.pi, 1025)
-        Z = np.sin(X)
+        Z = np.exp(np.sin(X))
         Zerr = np.cos(X)
-        self.update_graph(X=X, Z=Z, Zerr=Zerr, Xerr=None) 
+        self.update_graph(X=X, Z=Z, Zerr=Zerr, Xerr=None)
         #np.save("./myNumpyArray.npy", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         #np.savetxt("./myNumpyArray.txt", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         return
@@ -348,6 +354,8 @@ class MyFrame(qtw.QFrame,FrozenClass):
         self.setLayout(self.layout)
 
     def addCanvas(self):
+        self.graphView.setMinimumSize(640,480)
+        self.graphView.setMaximumSize(640,480)
         self.centralpanel.addWidget(self.graphView)
         #self.graphView.finishedUpdating.connect(self.on_graph_updated)
         self.graphView.update_graph()
@@ -357,14 +365,14 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
 
     def addFileList(self):
-        self.fileList.setMaximumWidth(self.fileList.width()/2.)
+        self.fileList.setMinimumWidth(640./3.)
         self.leftpanel.addWidget(qtw.QLabel("File:"))
         self.leftpanel.addWidget(self.fileList)
         return
 
 
     def addFunctionalityButtons(self):
-        buttonOpenDialog = qtw.QPushButton("Press here")
+        buttonOpenDialog = qtw.QPushButton("Load Data")
         buttonOpenDialog.clicked.connect(self.on_click_open_file)
         self.leftpanel.addWidget(buttonOpenDialog)
 
@@ -421,10 +429,10 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
 
     def addExperimentInfo(self):
-        self.infoTable.setMaximumWidth(self.infoTable.width()/2.)
-        self.infoTable.setColumnCount(1)
-        self.infoTable.horizontalHeader().hide()
-        self.rightpanel.addWidget(qtw.QLabel("Info:"))
+        self.infoTable.setMinimumWidth(640./3.)
+        self.infoTable.setColumnCount(4)
+        self.infoTable.setHorizontalHeaderLabels(("Q", "R", "dR", "dQ"))
+        self.rightpanel.addWidget(qtw.QLabel("Loaded data:"))
         self.rightpanel.addWidget(self.infoTable)
         return
 
@@ -540,16 +548,24 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
 
     def update_widgets(self):
-        y = self.experiment.__dict__
-
-        for i, k in enumerate(y.keys()):
-            if k[0] == "_":
-                continue
-            item_k = qtw.QTableWidgetItem(str(k))
-            item_v = qtw.QTableWidgetItem(str(y[k]))
+        q = self.experiment.Q
+        r = self.experiment.R
+        dr = self.experiment.dR
+        dq = self.experiment.dQ
+        for i in range(len(q)):
+            qi = qtw.QTableWidgetItem(str(q[i]))
+            ri = qtw.QTableWidgetItem(str(r[i]))
+            dri = qtw.QTableWidgetItem(str(dr[i]))
+            dqi = qtw.QTableWidgetItem(str(dq[i]))
             self.infoTable.insertRow(i)
-            self.infoTable.setVerticalHeaderItem(i,item_k)
-            self.infoTable.setItem(i,0,item_v)
+            self.infoTable.setItem(i,0,qi)
+            self.infoTable.setItem(i,1,ri)
+            self.infoTable.setItem(i,2,dri)
+            self.infoTable.setItem(i,3,dqi)
+
+
+            #self.infoTable.setVerticalHeaderItem(i,item_k)
+            #self.infoTable.setItem(i,0,item_v)
 
         self.minSpinBox.setValue(self.graphView.params.zmin)
         self.maxSpinBox.setValue(self.graphView.params.zmax)
@@ -664,7 +680,7 @@ class App(qtw.QMainWindow, FrozenClass):
         dx = dw.width()
         dy = dw.height()
 
-        self.setMinimumSize(640, 480)
+        self.setMinimumSize(1200, 480)
         self.setMaximumSize(0.7*dx, 0.7*dy)
         self.title = 'Reflectometry Data Viewer'
         self.my_tabs = MyTabs()
