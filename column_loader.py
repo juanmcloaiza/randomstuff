@@ -85,6 +85,7 @@ class PlotParams(FrozenClass):
 
         self.log_scale = True
         self.reset_limits_required = True
+        self.selected_label = ""
 
         self.title = ""
         return
@@ -151,15 +152,28 @@ class MyGraphView(qtw.QWidget):
 
 
     def define_axes(self):
-        self.ax =  self.canvas.figure.add_axes([0.1,0.1,0.30,0.7])
-        self.zoom_ax = self.canvas.figure.add_axes([0.55,0.25,0.25,0.5])
-        self.area_selector = AreaSelector(self.ax, self.line_select_callback)
+        dx = 0.3
+        dy = 0.4
+        y0 = 0.35
+        x0 = 0.15
+        s =  0.1
+        xlabel = "${\\rm Q[\\AA^{-1}]}$"
+        ylabel = "${\\rm R[a.u.]}$"
+        self.ax =  self.canvas.figure.add_axes([x0,y0,dx,dy])
+        self.zoom_ax = self.canvas.figure.add_axes([1-s-dx,y0,dx,dy])
+
+        self.ax.set_xlabel(xlabel)
+        self.zoom_ax.set_xlabel(xlabel)
+        self.ax.set_ylabel(ylabel)
+        self.zoom_ax.set_ylabel(ylabel)
+
+        #self.area_selector = AreaSelector(self.ax, self.line_select_callback)
         return #define_axes
 
 
     def init_canvas_connections(self):
         # connect mouse events to canvas
-        self.canvas.mpl_connect('key_press_event', self.area_selector)
+        #self.canvas.mpl_connect('key_press_event', self.area_selector)
         self.canvas.mpl_connect('motion_notify_event', self.on_mouse_move)
         #self.canvas.mpl_connect('draw_event', self.area_selector.mycallback)
         self.canvas.setFocusPolicy( Qt.ClickFocus)
@@ -220,7 +234,7 @@ class MyGraphView(qtw.QWidget):
         self.update_data(**kwargs)
         self.update_params(**kwargs)
         self.update_axes(**kwargs)
-        self.update_area_selector(**kwargs)
+        #self.update_area_selector(**kwargs)
         self.canvas.figure.suptitle(self.params.title)
         self.canvas.draw()
         self.save(**kwargs)
@@ -254,21 +268,27 @@ class MyGraphView(qtw.QWidget):
             Z = self.data.Z[label]
             Xerr = self.data.Xerr[label]
             Zerr = self.data.Zerr[label]
-            self.ax_lines.append(
-                self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label)
-            )
+            if label == self.params.selected_label:
+                line = self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label, marker='o')
+                self.zoom_ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label, marker='o', color = line[0].get_color())
+            else:
+                self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 0.5, label = label)
         #self.ax.set_xlim(xmin, xmax)
         #self.ax.set_ylim(ymin, ymax)
         #self.ax.set_legend()
+
+        self.ax.set_aspect("auto")
+        self.zoom_ax.set_aspect("auto")
         if self.params.log_scale:
             self.ax.set_yscale("log")
+            self.zoom_ax.set_yscale("log")
 
         return #update_ax
 
 
     def update_area_selector(self, **kwargs):
-        self.area_selector.rs.to_draw.set_visible(True)
-        self.area_selector.rs.extents = (self.params.x1, self.params.x2, self.params.y1, self.params.y2)
+        #self.area_selector.rs.to_draw.set_visible(True)
+        #self.area_selector.rs.extents = (self.params.x1, self.params.x2, self.params.y1, self.params.y2)
         #self.area_selector.rs.update()
         return #update_area_selector
 
@@ -301,6 +321,7 @@ class Settings(FrozenClass):
     def __init__(self):
         self.dataDirPath = None
         self.dataFileNames = []
+        self.selected_file = None
         self._freeze()
         return
 
@@ -336,6 +357,7 @@ class MyInfoTable(qtw.QTableWidget, FrozenClass):
             self.col[l] = i
         self.setHorizontalHeaderLabels(labels)
         self.horizontalHeader().setSectionsMovable(True)
+        self.horizontalHeader().setStretchLastSection(True)
         self._freeze()
         return
 
@@ -364,7 +386,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
         self.layout.setAlignment(Qt.AlignCenter)
         self.addExperimentInfo()
         self.addFileList()
-        self.addMinMaxSpinBoxes()
+        #self.addMinMaxSpinBoxes()
         self.addFunctionalityButtons()
         self.addCanvas()
         self.addPanels()
@@ -383,8 +405,9 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
     def addFileList(self):
         self.fileList.setMinimumWidth(640./3.)
-        self.leftpanel.addWidget(qtw.QLabel("File:"))
+        self.leftpanel.addWidget(qtw.QLabel("Loaded Files:"))
         self.leftpanel.addWidget(self.fileList)
+        self.fileList.itemSelectionChanged.connect(self.on_list_selection_changed)
         return
 
 
@@ -448,7 +471,8 @@ class MyFrame(qtw.QFrame,FrozenClass):
     def addExperimentInfo(self):
         self.infoTable.setMinimumWidth(640./3.)
         self.infoTable.horizontalHeader().sectionMoved.connect(self.on_section_moved)
-        self.rightpanel.addWidget(qtw.QLabel("Loaded data:"))
+        self.infoTableLabel = qtw.QLabel("Loaded data:")
+        self.rightpanel.addWidget(self.infoTableLabel)
         self.rightpanel.addWidget(self.infoTable)
         return
 
@@ -535,7 +559,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
         if len(self.settings.dataFileNames) < 1:
             return False
-        
+
         path, _ = os.path.split(dataFile)
         self.settings.dataDirPath = path
         return True
@@ -561,6 +585,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
                             Z = self.experiment.R,
                             Xerr = self.experiment.dQ,
                             Zerr = self.experiment.dR,
+                            selected_label=self.settings.selected_file
                             )
             self.update_widgets()
         except Exception as e:
@@ -571,11 +596,20 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
 
     def update_widgets(self):
+        fname = self.settings.selected_file
 
-        for f in self.settings.dataFileNames:
+        self.fileList.clear()
+        for i,f in enumerate(self.settings.dataFileNames):
             self.fileList.addItem(f)
+            if f == fname:
+                self.fileList.setCurrentRow(i)
 
-        fname = self.settings.dataFileNames[0]
+        if fname is None:
+            return False
+
+        self.infoTableLabel.setText(fname)
+
+
         q = self.experiment.Q[fname]
         r = self.experiment.R[fname]
         dr = self.experiment.dR[fname]
@@ -626,10 +660,10 @@ class MyFrame(qtw.QFrame,FrozenClass):
         for i in range(len(new_labels)):
             new_col[new_labels[i]] = i
 
-        q = q_r_dr_dq_dict[new_col["Q"]] 
-        r = q_r_dr_dq_dict[new_col["R"]] 
-        dr = q_r_dr_dq_dict[new_col["dR"]] 
-        dq = q_r_dr_dq_dict[new_col["dQ"]] 
+        q = q_r_dr_dq_dict[new_col["Q"]]
+        r = q_r_dr_dq_dict[new_col["R"]]
+        dr = q_r_dr_dq_dict[new_col["dR"]]
+        dq = q_r_dr_dq_dict[new_col["dQ"]]
 
         self.experiment.Q = q
         self.experiment.R = r
@@ -640,6 +674,20 @@ class MyFrame(qtw.QFrame,FrozenClass):
             self.infoTable.col[l] = new_col[l]
 
         self.update_gui()
+        return
+
+    @pyqtSlot()
+    def on_list_selection_changed(self):
+        try:
+            current_selection = self.fileList.selectedItems()[0].text()
+        except IndexError:
+            return
+        if current_selection == self.settings.selected_file:
+            return
+
+        self.settings.selected_file = current_selection
+        self.update_gui()
+
         return
 
 
@@ -718,7 +766,7 @@ class MyTabs(qtw.QTabWidget,FrozenClass):
     @pyqtSlot()
     def addTab(self):
         frame = MyFrame()
-        super().addTab(frame, "New Experiment " + str(1 + self.last_num))
+        super().addTab(frame, "New Dataset " + str(1 + self.last_num))
         self.setCurrentIndex(self.last_num)
         self.last_num += 1
         self.frameList.append(frame)
