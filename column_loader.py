@@ -21,6 +21,10 @@ if hasattr(QtCore.Qt, 'AA_UseHighDpiPixmaps'):
 
 def safe_parse(parse_func, file_path):
     try:
+        extension = os.path.splitext(file_path)[-1]
+        if extension == ".zip":
+            return safe_parse_zip(parse_func, file_path)
+
         with open(file_path, 'r') as fp:
             tf = parse_func(fp)
         print(f" Parsed {file_path}")
@@ -28,6 +32,11 @@ def safe_parse(parse_func, file_path):
     except Exception as e:
         App.handle_exception(e)
         return False
+
+
+def safe_parse_zip(parse_func, file_path):
+    raise NotImplementedError
+    return True
 
 
 def safe_parse_numpy(parse_func, file_path):
@@ -152,11 +161,11 @@ class MyGraphView(qtw.QWidget):
 
 
     def define_axes(self):
+        s =  0.1
         dx = 0.3
         dy = 0.4
-        y0 = 0.35
+        y0 = 1-s-dy
         x0 = 0.15
-        s =  0.1
         xlabel = "${\\rm Q[\\AA^{-1}]}$"
         ylabel = "${\\rm R[a.u.]}$"
         self.ax =  self.canvas.figure.add_axes([x0,y0,dx,dy])
@@ -268,14 +277,18 @@ class MyGraphView(qtw.QWidget):
             Z = self.data.Z[label]
             Xerr = self.data.Xerr[label]
             Zerr = self.data.Zerr[label]
+            lbl = label.split('/')[-1]
             if label == self.params.selected_label:
-                line = self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label, marker='o')
-                self.zoom_ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label, marker='o', color = line[0].get_color())
+                line = self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = lbl, marker='o', zorder=np.inf)
+                self.zoom_ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = lbl, marker='o', color = line[0].get_color())
+                self.zoom_ax.set_title(label, fontsize=5)
             else:
-                self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 0.5, label = label)
+                self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 0.5, label = lbl)
         #self.ax.set_xlim(xmin, xmax)
         #self.ax.set_ylim(ymin, ymax)
-        #self.ax.set_legend()
+        self.ax.legend(loc='upper left', bbox_to_anchor= (-0.3, -0.3), ncol=3,
+            borderaxespad=0, frameon=False, fontsize = 6)
+
 
         self.ax.set_aspect("auto")
         self.zoom_ax.set_aspect("auto")
