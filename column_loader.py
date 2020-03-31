@@ -60,10 +60,11 @@ class FrozenClass(object):
 
 class PlotData(FrozenClass):
     def __init__(self):
-        self.X = np.zeros((1,10))
-        self.Xerr = np.zeros((1,10))
-        self.Z = np.zeros((1,10))
-        self.Zerr = np.zeros((1,10))
+        #dict, intended use: {label: numpy array}
+        self.X = dict()
+        self.Xerr = dict()
+        self.Z = dict()
+        self.Zerr = dict()
         return
 
 
@@ -203,8 +204,6 @@ class MyGraphView(qtw.QWidget):
                 self.params.__setattr__(k,kwargs[k])
 
         if self.params.reset_limits_required:
-            self.params.zmin = self.data.Z.min()
-            self.params.zmax = self.data.Z.max()
             self.params.reset_limits_required = False
         return #update_params
 
@@ -240,7 +239,7 @@ class MyGraphView(qtw.QWidget):
             if extension in [".png", ".pdf"]:
                 self.canvas.figure.savefig(filePath)
             elif extension in [".txt"]:
-                np.savetxt(filePath,self.data.Z)
+                raise NotImplementedError
             else:
                 raise NotImplementedError
         return
@@ -249,8 +248,18 @@ class MyGraphView(qtw.QWidget):
     def update_ax(self, **kwargs):
         xmin, xmax = self.params.xmin, self.params.xmax
         ymin, ymax = self.params.ymin, self.params.ymax
-        self.ax_line = self.ax.errorbar(self.data.X, self.data.Z, yerr=self.data.Zerr, xerr=self.data.Xerr, ecolor='C0', alpha = 1)
-        self.ax.set_xlim((self.data.X.min(), self.data.X.max()))
+        self.ax_lines = []
+        for label in self.data.X.keys():
+            X = self.data.X[label]
+            Z = self.data.Z[label]
+            Xerr = self.data.Xerr[label]
+            Zerr = self.data.Zerr[label]
+            self.ax_lines.append(
+                self.ax.errorbar(X, Z, yerr=Zerr, xerr=Xerr, alpha = 1, label = label)
+            )
+        #self.ax.set_xlim(xmin, xmax)
+        #self.ax.set_ylim(ymin, ymax)
+        #self.ax.set_legend()
         if self.params.log_scale:
             self.ax.set_yscale("log")
 
@@ -265,24 +274,24 @@ class MyGraphView(qtw.QWidget):
 
 
     def update_zoom_ax(self):
-        x1, x2 = self.params.x1, self.params.x2
-        y1, y2 = self.params.y1, self.params.y2
-
-        self.zoom_ax_line = self.zoom_ax.errorbar(self.data.X, self.data.Z, yerr=self.data.Zerr, xerr=self.data.Xerr, alpha = 1)
-        self.zoom_ax.set_xlim((x1, x2))
-        self.zoom_ax.set_ylim((y1, y2))
-        self.zoom_ax.set_aspect("auto")
-
-        if self.params.log_scale:
-            self.zoom_ax.set_yscale("log")
-        return #update_zoom_ax
+        pass
+        #x1, x2 = self.params.x1, self.params.x2
+        #y1, y2 = self.params.y1, self.params.y2
+        #self.zoom_ax.set_xlim((x1, x2))
+        #self.zoom_ax.set_ylim((y1, y2))
+        #self.zoom_ax.set_aspect("auto")
+        #if self.params.log_scale:
+        #    self.zoom_ax.set_yscale("log")
+        #return #update_zoom_ax
 
 
     def test_show(self):
         X = np.linspace(-np.pi,np.pi, 1025)
         Z = np.exp(np.sin(X))
         Zerr = np.cos(X)
-        self.update_graph(X=X, Z=Z, Zerr=Zerr, Xerr=None)
+        Xerr = 0*X
+        label = "test"
+        self.update_graph(X={label:X}, Z={label:Z}, Zerr={label:Zerr}, Xerr={label:Xerr})
         #np.save("./myNumpyArray.npy", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         #np.savetxt("./myNumpyArray.txt", 3 + 10*np.sin(np.sqrt(X**2 + Y**2)))
         return
@@ -291,21 +300,14 @@ class MyGraphView(qtw.QWidget):
 class Settings(FrozenClass):
     def __init__(self):
         self.dataDirPath = None
-        self.dataFileName = None
+        self.dataFileNames = []
         self._freeze()
         return
-
-
-    def dataFilePath(self):
-        if self.dataDirPath is None:
-            return None
-        return os.path.join(self.dataDirPath,self.dataFileName)
-
 
     def basename(self):
         if self.dataDirPath is None:
             return None
-        return os.path.splitext(self.dataFilePath())[0]
+        return os.path.splitext(self.dataDirPath)[0]
 
 
 class Experiment(FrozenClass):
@@ -313,10 +315,12 @@ class Experiment(FrozenClass):
         self.selector_lambda = None
         self.angle_of_incidence = 0
 
-        self.Q = np.asarray([])
-        self.R = np.asarray([])
-        self.dR = np.asarray([])
-        self.dQ = np.asarray([])
+        #Dicts of (str, numpy array) representing
+        # (Filename, numpy array) pairs
+        self.Q = dict()
+        self.R = dict()
+        self.dR = dict()
+        self.dQ = dict()
 
         self._freeze()
 
@@ -452,7 +456,7 @@ class MyFrame(qtw.QFrame,FrozenClass):
     def doStuff(self):
         #self.graphView.test()
         #return
-        if not self.read_data_file():
+        if not self.read_data_files():
             return
         if not self.update_gui():
             return
@@ -510,35 +514,41 @@ class MyFrame(qtw.QFrame,FrozenClass):
             if numcols > 3:
                 dq = [dq for _,dq in sorted(zip(x,x_err))]
 
-        self.experiment.Q = np.asarray(q)
-        self.experiment.R = np.asarray(r)
-        self.experiment.dR = np.asarray(dr)
-        self.experiment.dQ = np.asarray(dq)
+        self.experiment.Q[fp.name]  = np.asarray(q)
+        self.experiment.R[fp.name]  = np.asarray(r)
+        self.experiment.dR[fp.name] = np.asarray(dr)
+        self.experiment.dQ[fp.name] = np.asarray(dq)
         return True
 
 
-    def read_data_file(self):
+    def read_data_files(self):
         # Open and read the dat file
-        #dataFilePath = self.openFileNameDialog()
-        dataFilePath = str("C:/Users/juanm/Documents//randomstuff//testfiles/shift_6//nfringes_5.out")
-        if dataFilePath:
-            path, filename = os.path.split(dataFilePath)
-            self.settings.dataFileName = filename
-            self.settings.dataDirPath = path
-            self.fileList.addItem(path)
-            self.fileList.addItem(filename)
-            return safe_parse(self.parse_reflectometry_file, self.settings.dataFilePath())
-        return False
+        dataFilePaths = self.openFileNameDialog()
+        #dataFilePath = str("C:/Users/juanm/Documents//randomstuff//testfiles/shift_6//nfringes_5.out")
+        if not dataFilePaths:
+            return False
+
+        for dataFile in dataFilePaths:
+            if not safe_parse(self.parse_reflectometry_file, dataFile):
+                continue
+            self.settings.dataFileNames.append(dataFile)
+
+        if len(self.settings.dataFileNames) < 1:
+            return False
+        
+        path, _ = os.path.split(dataFile)
+        self.settings.dataDirPath = path
+        return True
 
 
     def openFileNameDialog(self):
         try:
             options = qtw.QFileDialog.Options()
             options |= qtw.QFileDialog.DontUseNativeDialog
-            fileName, _ = qtw.QFileDialog.getOpenFileName(self,"QFileDialog.getOpenFileName()", "","All Files (*);;Measurement dat file (*.dat)", options=options)
+            fileNames, _ = qtw.QFileDialog.getOpenFileNames(self,"QFileDialog.getOpenFileName()", "","All Files (*);;Measurement dat file (*.dat)", options=options)
             # self.openFileNamesDialog()
-            if fileName:
-                return fileName
+            if fileNames:
+                return fileNames
         except Exception as e:
             App.handle_exception(e)
         return None
@@ -561,10 +571,15 @@ class MyFrame(qtw.QFrame,FrozenClass):
 
 
     def update_widgets(self):
-        q = self.experiment.Q
-        r = self.experiment.R
-        dr = self.experiment.dR
-        dq = self.experiment.dQ
+
+        for f in self.settings.dataFileNames:
+            self.fileList.addItem(f)
+
+        fname = self.settings.dataFileNames[0]
+        q = self.experiment.Q[fname]
+        r = self.experiment.R[fname]
+        dr = self.experiment.dR[fname]
+        dq = self.experiment.dQ[fname]
 
         qcol = self.infoTable.col["Q"]
         rcol = self.infoTable.col["R"]
@@ -625,7 +640,6 @@ class MyFrame(qtw.QFrame,FrozenClass):
             self.infoTable.col[l] = new_col[l]
 
         self.update_gui()
-
         return
 
 
@@ -710,7 +724,7 @@ class MyTabs(qtw.QTabWidget,FrozenClass):
         self.frameList.append(frame)
 
         for i, f in enumerate(self.frameList):
-            name = f.settings.dataFileName
+            name = f.settings.basename()
             if name is not None:
                 self.setTabText(i,name)
 
