@@ -4,6 +4,7 @@ import bornagain as ba
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.colors import LogNorm
+import time
 
 def run_simulation():
     sample = new_sample()
@@ -14,7 +15,10 @@ def run_simulation():
 
 
 if __name__ == '__main__':
+    ta = time.time()
     result = run_simulation()
+    tb = time.time()
+    print(f"time: {tb-ta}s")
     axes_limits = ba.get_axes_limits(result, ba.AxesUnits.QSPACE)
     print(f"Axes limits: {axes_limits}")
     axes_labels = ba.get_axes_labels(result, ba.AxesUnits.QSPACE)
