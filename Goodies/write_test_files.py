@@ -35,12 +35,13 @@ def filepath_to_save_test(dir_name = ".", base_filename = "test_file", suffix = 
 
 
 def generate_mock_data(nfringes = 1, shift = 0):
-    qvals = np.flip(np.linspace(2*np.pi,0,32, endpoint=False), axis=0)
+    qvals = np.flip(np.linspace(0.15,0,32, endpoint=False), axis=0)
     qh = (qvals[1] - qvals[0])
-    rvals =  qvals**(-4) * (1.01 - np.cos(nfringes * qvals))
+    Q = 2*np.pi * qvals / 0.15
+    rvals =  qvals**(-4) * (1.01 - np.cos(nfringes * Q))
     rvals *= (10**shift)/rvals[0]
-    dr = 0.4*rvals * (1.1 + np.cos(nfringes * qvals))
-    dq = 0.5 * qh + 0.25 * qh * np.sin(nfringes*qvals)
+    dr = 0.4*rvals * (1.1 + np.cos(nfringes * Q))
+    dq = 0.5 * qh + 0.25 * qh * np.sin(nfringes*Q)
     return qvals, rvals, dr, dq
 
 

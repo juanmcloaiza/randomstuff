@@ -36,7 +36,7 @@ class MainWindow(QtW.QMainWindow):
 
         cont_x = ax.contour(X, levels=2,colors='k', linestyles='solid')
         cont_y = ax.contour(Y, levels=2,colors='k', linestyles='solid')
-        cont_z = ax.contourf(Z)
+        cont_z = ax.imshow(Z)
         ax.clabel(cont_x, fontsize=20, inline=1)
         ax.clabel(cont_y, fontsize=20, inline=1)
         ax.set_xticks([])
