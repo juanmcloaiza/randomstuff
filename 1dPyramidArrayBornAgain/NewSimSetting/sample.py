@@ -21,6 +21,10 @@ class Materials(object):
     polymer = ("polymer", 10e-06, 0.008e-06)
     air =  ("air", 0.0, 0.0)
     #Ref: http://gisaxs.com/index.php/Refractive_index
+
+    @classmethod
+    def test_material(cls):
+        return ("test", 10e-06, 0.0)
     pass
 
 
@@ -30,9 +34,8 @@ class Scales(object):
     pyramid_side = 200*nm
     pyramid_height = 50*nm
     line_to_line_distance = 1300.0*nm
-    xDecayLength = 200.0*nm
-    yDecayLength = 200.0*nm
-    n_repetitions=1
+    xDecayLength = 100.0*nm
+    yDecayLength = 100.0*nm
     orientation = "x"
 
 
@@ -43,10 +46,6 @@ class Scales(object):
     @classmethod
     def total_radius(cls):
         return cls.shell_thickness + cls.core_radius
-
-    @classmethod
-    def single_line_length(cls):
-        return cls.pyramid_side * cls.n_repetitions
 
     pass
 
@@ -64,12 +63,12 @@ def new_superstrate_layer():
 
 
 def new_interference_function():
-    d = Scales.line_to_line_distance * (1.0 + 0.1*np.random.uniform(-1.0,1.0))
-    s = Scales.single_line_length()
+    d = Scales.line_to_line_distance #+ np.random.normal(0,0.001*Scales.line_to_line_distance)
+    s = Scales.pyramid_side
     if Scales.orientation == 'x':
         interference_2d_lattice = ba.InterferenceFunction2DLattice(s, d, 90.0*deg, 0.0*deg)
     elif Scales.orientation == 'y':
-        interference_2d_lattice = ba.InterferenceFunction2DLattice(Scales.line_to_line_distance, Scales.single_line_length(), 90.0*deg, 0.0*deg)
+        interference_2d_lattice = ba.InterferenceFunction2DLattice(d, s, 90.0*deg, 0.0*deg)
     else:
         raise KeyError
 
@@ -86,9 +85,18 @@ def new_sphere_particle(material_tuple, radius):
 
 
 def new_core_shell_particle():
-    core_position = ba.kvector_t(0.0, 0.0, Scales.shell_thickness)
-    particle_shell = new_sphere_particle(Materials.air,Scales.total_radius())
-    particle_core = new_sphere_particle(Materials.gold,Scales.core_radius)
+    x, y, z = 0, 0, Scales.shell_thickness
+    dpos = 0.0 *  Scales.shell_thickness
+    xcore = np.random.normal(x,dpos)
+    ycore = np.random.normal(y,dpos)
+    zcore = np.random.normal(z,dpos)
+
+    dr = 0.0 * Scales.core_radius
+    rcore = np.random.normal(Scales.core_radius, dr)
+
+    core_position = kvector_t(xcore, ycore, zcore)#kvector_t(x, y, z)#
+    particle_shell = new_sphere_particle(Materials.test_material(),Scales.total_radius())
+    particle_core = new_sphere_particle(Materials.gold,rcore)
     particleCoreShell = ba.ParticleCoreShell(particle_shell, particle_core, core_position)
     return particleCoreShell
 
@@ -100,9 +108,23 @@ def new_only_core_particle():
 
 def new_particle_at_position(x=0, y=0, z=0):
     particle = new_core_shell_particle()
+    #dr = 0.0 * Scales.core_radius
+    #rx = np.random.normal(x,dr)
+    #ry = np.random.normal(y,dr)
+    #rz = np.random.normal(z,dr)
     particle_position = kvector_t(x, y, z)
     particle.setPosition(particle_position)
     return particle
+
+
+def new_particle_distributution(n_samples=25, sigma_factor=2.0, x=0, y=0, z=0):
+    dr = Scales.core_radius
+    particle = new_core_shell_particle()
+
+    distr = ba.DistributionGaussian(z, dr)
+    par_distr = ba.ParameterDistribution("/ParticleCoreShell/PositionZ", distr, 5, 2.0)
+    particle_distribution = ba.ParticleDistribution(particle, par_distr)
+    return particle_distribution
 
 
 def new_particle_composition():
@@ -112,22 +134,18 @@ def new_particle_composition():
     r = Scales.core_radius
     half_d = 0.5*d
 
-    rnd1 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd2 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd3 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd4 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd5 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd6 = 0*np.random.normal(0,r,Scales.n_repetitions)
-    rnd7 = 0*np.random.normal(0,0.5*r,Scales.n_repetitions)
-    for i in range(Scales.n_repetitions):
-        # 4 bottom particles
-        particle_list.append(new_particle_at_position(x=i*d+rnd1[i], y=rnd3[i], z=0))
-        particle_list.append(new_particle_at_position(x=i*d+rnd2[i], y=d+rnd4[i], z=0))
-    #    particle_list.append(new_particle_at_position(x=i*d+d, y=0, z=0))
-    #    particle_list.append(new_particle_at_position(x=i*d+d, y=d, z=0))
+    # bottom particles
+    particle_list.append(new_particle_at_position(x=0, y=0, z=0))
+    particle_list.append(new_particle_at_position(x=0, y=d, z=0))
+    particle_list.append(new_particle_at_position(x=d, y=0, z=0))
+    particle_list.append(new_particle_at_position(x=d, y=d, z=0))
 
-        #top particle
-        particle_list.append(new_particle_at_position(x=i*d+half_d+rnd5[i], y=half_d+rnd6[i], z=h+rnd7[i]))
+    #top particles
+    particle_list.append(new_particle_at_position(x=0, y=0, z=h))
+    particle_list.append(new_particle_at_position(x=0, y=d, z=h))
+    particle_list.append(new_particle_at_position(x=d, y=0, z=h))
+    particle_list.append(new_particle_at_position(x=d, y=d, z=h))
+    #particle_list.append(new_particle_distributution(x=i*d+half_d, y=half_d, z=h))
 
     particleComposition = ba.ParticleComposition()
     for p in particle_list:
@@ -137,7 +155,7 @@ def new_particle_composition():
 
 
 def new_layout():
-    particle = new_particle_composition()#new_only_core_particle()#new_core_shell_particle()#new_particle_composition() 
+    particle = new_particle_composition()#new_only_core_particle()#new_core_shell_particle()#new_particle_composition() new_particle_distributution()
     interference_2d_lattice = new_interference_function()
     layout = ba.ParticleLayout()
     layout.addParticle(particle, 1.0)

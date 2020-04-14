@@ -26,8 +26,8 @@ class Settings(object):
     intensity = 1.0e8
 
     distance_to_detector_mm = 7000
-    nbins_x = 50
-    nbins_y = 50
+    nbins_x = 500
+    nbins_y = 500
 
     ###
     qy_limit = 0.7#4487765659211788

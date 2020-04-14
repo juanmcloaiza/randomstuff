@@ -15,7 +15,7 @@ def run_simulation():
 
 
 if __name__ == '__main__':
-    n_experiments = 100
+    n_experiments = 1
     instrument = new_instrument()
     sample_list =[new_sample() for _ in range(n_experiments)]
     array_list = []
