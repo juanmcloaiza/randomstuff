@@ -12,7 +12,8 @@ dirpath = sys.argv[1]
 filenames = []
 for root, dirs, files in os.walk(dirpath):
     for fname in files:
-        if fname.rsplit(".")[-1] == "edf":
+        extension = os.path.splitext(fname)[-1]
+        if extension == ".edf":
             filenames.append(os.path.join(dirpath,fname))
 
 for f in filenames: 
@@ -20,13 +21,17 @@ for f in filenames:
     print(f)
 
     img = fabio.open(f)
-    print(img.header)
 
     data = img.data.astype("float64")
-    new_destination = '.'.join([f.rsplit(".")[0], 'txt'])
+    path_no_extension = os.path.splitext(f)[-2]
+    new_destination = path_no_extension + ".txt"
+    new_destination_header = path_no_extension + "_head_" + ".txt"
 
     print("Saving to:")
     print(new_destination)
+    print(new_destination_header)
+
     np.savetxt(new_destination, data)
+    print(img.header, file=open(new_destination_header, "w"))
 
     print("------------------------")
