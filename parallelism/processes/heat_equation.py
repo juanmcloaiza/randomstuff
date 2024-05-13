@@ -3,8 +3,8 @@
 import numpy as np
 import multiprocessing as mp
 
-NX = 800  # number of grid points along x-axis
-NY = 800  # number of grid points along y-axis
+NX = 80  # number of grid points along x-axis
+NY = 80  # number of grid points along y-axis
 STEPS = 1000  # number of time steps
 OUTPUT_INTERVAL = 100  # interval for writing output files
 DX = 1.0 / (NX - 1)  # grid spacing along x-axis
@@ -18,12 +18,12 @@ def initialize(nx, ny, rank, nranks):
     Initialize the grid with boundary conditions and initial conditions.
     """
     u = np.zeros((nx, ny))
-    u[:, 0] = 16.0  # Boundary condition at y=0
-    u[:, -1] = 16.0  # Boundary condition at y=1
+    u[:, 0] = 1.0  # Boundary condition at y=0
+    u[:, -1] = 1.0  # Boundary condition at y=1
     if rank == 0:
-        u[0, :] = 16.0  # Boundary condition at x=0
+        u[0, :] = 1.0  # Boundary condition at x=0
     if rank == nranks-1:
-        u[-1, :] = 16.0  # Boundary condition at x=1
+        u[-1, :] = 1.0  # Boundary condition at x=1
     return u
 
 
@@ -41,11 +41,11 @@ def update(u_local, recv_top, recv_bottom, val):
 
     for i in range(1, u_local.shape[0]-1):
         for j in range(1, u_local.shape[1]-1):
-            u_new[i, j] = val
-            #u_new[i, j] = u_local[i, j] + ALPHA * DT * (
-            #    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
-            #    (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
-            #)
+            #u_new[i, j] = val
+            u_new[i, j] = u_local[i, j] + ALPHA * DT * (
+                (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
+                (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
+            )
 
     return u_new
 
@@ -85,13 +85,13 @@ def worker(rank, n_processes, result, recv_queues, output_lock):
            u_local[-1, :] = bottom
 
         u_local = update(u_local, top, bottom, rank)
-        result[start_idx:start_idx + local_nx, :] = u_local
 
         # Output current state
         if step % OUTPUT_INTERVAL == 0:
             with output_lock:
                 print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
                 # Update the shared array with the current result
+                result[start_idx:start_idx + local_nx, :] = u_local
                 if rank == 0:
                     write_output(result, step)
 
