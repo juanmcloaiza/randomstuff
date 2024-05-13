@@ -37,9 +37,11 @@ def update(u_local, recv_top, recv_bottom):
                 (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
             )
     # Update boundary points using received data
-    u_new[0, :] = recv_top
-    u_new[-1, :] = recv_bottom
-    return u_new[1:-1, :]  # Exclude boundary points
+    if recv_top is not None:
+        u_new[0, :] = recv_top
+    if recv_bottom is not None:
+        u_new[-1, :] = recv_bottom
+    return u_new
 
 
 def worker(rank, n_processes, result, recv_queues):
@@ -58,16 +60,35 @@ def worker(rank, n_processes, result, recv_queues):
     recv_bottom = recv_queues[(rank + 1) % n_processes] if rank < n_processes - 1 else None
 
     for step in range(1, STEPS + 1):
-        print(f"Step {step}, rank {rank}/{n_processes}")
+        print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
         # Send boundary values to neighboring processes
-        if rank > 0:
-            recv_top.put(u_local[0, :])
-            u_local[0, :] = recv_top.get()
-        if rank < n_processes - 1:
-            recv_bottom.put(u_local[-1, :])
-            u_local[-1, :] = recv_bottom.get()
+        if recv_top is not None:
+            try:
+                recv_top.put_nowait(u_local[0, :])
+            except mp.queues.Full:
+                pass
+        if recv_bottom is not None:
+            try:
+                recv_bottom.put_nowait(u_local[-1, :])
+            except mp.queues.Full:
+                pass
 
-        u_local = update(u_local, recv_top.get() if recv_top else None, recv_bottom.get() if recv_bottom else None)
+        # Receive boundary values from neighboring processes
+        if recv_top is not None:
+            try:
+                u_local[0, :] = recv_top.get_nowait()
+            except mp.queues.Empty:
+                pass
+        if recv_bottom is not None:
+            try:
+                u_local[-1, :] = recv_bottom.get_nowait()
+            except mp.queues.Empty:
+                pass
+
+        u_local = update(u_local, 
+                         recv_top.get_nowait()    if recv_top    and not recv_top.empty()    else None,
+                         recv_bottom.get_nowait() if recv_bottom and not recv_bottom.empty() else None)
+
 
         if step % OUTPUT_INTERVAL == 0:
             write_output(u_local, rank, step)
@@ -87,7 +108,8 @@ def write_output(result_local, rank, step):
 
 
 def main():
-    n_processes = 4#mp.cpu_count()
+    n_processes = mp.cpu_count()
+    print("*** Running on {n_processes} processes ***")
 
     # Create queues for inter-process communication
     recv_queues = [mp.Queue() for _ in range(n_processes)]
