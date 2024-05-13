@@ -3,8 +3,8 @@
 import numpy as np
 import multiprocessing as mp
 
-NX = 32  # number of grid points along x-axis
-NY = 32  # number of grid points along y-axis
+NX = 160  # number of grid points along x-axis
+NY = 160  # number of grid points along y-axis
 STEPS = 1000  # number of time steps
 OUTPUT_INTERVAL = 100  # interval for writing output files
 DX = 1.0 / (NX - 1)  # grid spacing along x-axis
@@ -29,7 +29,7 @@ def initialize(nx, ny, rank, nranks):
     return u
 
 
-def update(u_local, recv_top, recv_bottom, val):
+def update(u_local, recv_top, recv_bottom, rank):
     """
     Update the local portion of the grid using explicit finite difference method.
     """
@@ -37,42 +37,22 @@ def update(u_local, recv_top, recv_bottom, val):
     nj = u_local.shape[1]
     u_new = np.ones(u_local.shape)
 
-    if recv_top is None:
-        recv_top = np.ones(nj)
-
-    if recv_bottom is None:
-        recv_bottom = np.ones(nj)
-    
     for i in range(1, ni-1):
-        for j in range(0, nj):
-            if j == 0:
-                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
-                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
-                    (u_local[i, j + 1] - 2.0 * u_local[i, j] + 1.) / (DY * DY)
-                )
-            elif j == nj-1:
-                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
-                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
-                    (1. - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
-                )
-            else:
-                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
-                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
-                    (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
-                )
+        for j in range(1, nj-1):
+            u_new[i, j] = (u_local[i + 1, j] + u_local[i - 1, j] +
+                                      u_local[i, j + 1] + u_local[i, j - 1]) / 4
 
-    u_new[0, 1:nj-1] = u_local[0, 1:nj-1] + ALPHA * DT * (
-                (u_local[1, 1:nj-1] - 2.0 * u_local[0, 1:nj-1] + recv_top[1:-1])   / (DX * DX) +
-            (u_local[0, 2:nj] - 2.0 * u_local[0, 1:nj-1] + u_local[0, 0:nj-2]) / (DY * DY)
-            )
+    if recv_top is not None:
+        for j in range(1, nj-1):
+            #u_new[0, j] = recv_top[j]
+            u_new[0, j] = (u_local[1, j] + recv_top[j] +
+                                      u_local[0, j + 1] + u_local[0, j - 1]) / 4
 
-    u_new[ni-1, 1:nj-1] = u_local[i, 1:nj-1] + ALPHA * DT * (
-                (recv_bottom[1:-1] - 2.0 * u_local[ni-1, 1:nj-1] + u_local[ni-2, 1:nj-1]) / (DX * DX) +
-                (u_local[ni-1, 2:nj] - 2.0 * u_local[ni-1, 1:nj-1] + u_local[ni-1, 0:nj-2]) / (DY * DY)
-            )
-
-    u_new = val * np.ones(u_local.shape)
-
+    if recv_bottom is not None:
+        for j in range(1, nj-1):
+            #u_new[ni-1, j] = recv_bottom[j] 
+            u_new[ni-1, j] = (recv_bottom[j] + u_local[ni - 2, j] +
+                                      u_local[ni-1, j + 1] + u_local[ni-1, j - 1]) / 4
 
     return u_new
 
@@ -95,11 +75,11 @@ def worker(rank, n_processes, result, recv_queues):
     for step in range(0, STEPS):
 
         # Update the shared array with the current result
-        result[start_idx:start_idx + local_nx, :] = u_local
+        #result[start_idx:start_idx + local_nx, :] = u_local
         # Output current state
-        if step % OUTPUT_INTERVAL == 0:
-            print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
-            #if rank == 0:
+        #if step % OUTPUT_INTERVAL == 0:
+        #    if rank == 0:
+        #    print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
             #    write_output(result, step)
 
         # Send boundary values to neighboring processes
@@ -136,9 +116,9 @@ def write_output(result, step):
             f.write(" ".join(map(str, row)) + "\n")
 
 
-def main():
-    n_processes = mp.cpu_count()
-    print("*** Running on {n_processes} processes ***")
+def main(nproc):
+    n_processes = nproc #mp.cpu_count()
+    print(f"*** Running on {n_processes} processes ***")
 
     # Create queues for inter-process communication
     recv_queues = [mp.Queue() for _ in range(n_processes)]
@@ -165,8 +145,9 @@ def main():
 if __name__ == "__main__":
     import time
     import sys
+    nproc = int(sys.argv[1])
     init = time.perf_counter()
-    main()
+    main(nproc)
     finish = time.perf_counter()
     total = finish - init
-    print(f"Finished in {total:0.2f} sec.")
+    print(f"Finished in {total:0.2f} sec. with {nproc} processes")
