@@ -3,8 +3,8 @@
 import numpy as np
 import multiprocessing as mp
 
-NX = 80  # number of grid points along x-axis
-NY = 80  # number of grid points along y-axis
+NX = 32  # number of grid points along x-axis
+NY = 32  # number of grid points along y-axis
 STEPS = 1000  # number of time steps
 OUTPUT_INTERVAL = 100  # interval for writing output files
 DX = 1.0 / (NX - 1)  # grid spacing along x-axis
@@ -24,6 +24,8 @@ def initialize(nx, ny, rank, nranks):
         u[0, :] = 1.0  # Boundary condition at x=0
     if rank == nranks-1:
         u[-1, :] = 1.0  # Boundary condition at x=1
+
+    write_output(u, f"init_{rank}")
     return u
 
 
@@ -31,26 +33,51 @@ def update(u_local, recv_top, recv_bottom, val):
     """
     Update the local portion of the grid using explicit finite difference method.
     """
-    u_new = np.copy(u_local)
+    ni = u_local.shape[0]
+    nj = u_local.shape[1]
+    u_new = np.ones(u_local.shape)
 
-    # Update boundary points using received data
-    if recv_top is not None:
-        u_new[0, :] = recv_top
-    if recv_bottom is not None:
-        u_new[-1, :] = recv_bottom
+    if recv_top is None:
+        recv_top = np.ones(nj)
 
-    for i in range(1, u_local.shape[0]-1):
-        for j in range(1, u_local.shape[1]-1):
-            #u_new[i, j] = val
-            u_new[i, j] = u_local[i, j] + ALPHA * DT * (
-                (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
-                (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
+    if recv_bottom is None:
+        recv_bottom = np.ones(nj)
+    
+    for i in range(1, ni-1):
+        for j in range(0, nj):
+            if j == 0:
+                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
+                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
+                    (u_local[i, j + 1] - 2.0 * u_local[i, j] + 1.) / (DY * DY)
+                )
+            elif j == nj-1:
+                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
+                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
+                    (1. - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
+                )
+            else:
+                u_new[i, j] = u_local[i, j] + ALPHA * DT * (
+                    (u_local[i + 1, j] - 2.0 * u_local[i, j] + u_local[i - 1, j]) / (DX * DX) +
+                    (u_local[i, j + 1] - 2.0 * u_local[i, j] + u_local[i, j - 1]) / (DY * DY)
+                )
+
+    u_new[0, 1:nj-1] = u_local[0, 1:nj-1] + ALPHA * DT * (
+                (u_local[1, 1:nj-1] - 2.0 * u_local[0, 1:nj-1] + recv_top[1:-1])   / (DX * DX) +
+            (u_local[0, 2:nj] - 2.0 * u_local[0, 1:nj-1] + u_local[0, 0:nj-2]) / (DY * DY)
             )
+
+    u_new[ni-1, 1:nj-1] = u_local[i, 1:nj-1] + ALPHA * DT * (
+                (recv_bottom[1:-1] - 2.0 * u_local[ni-1, 1:nj-1] + u_local[ni-2, 1:nj-1]) / (DX * DX) +
+                (u_local[ni-1, 2:nj] - 2.0 * u_local[ni-1, 1:nj-1] + u_local[ni-1, 0:nj-2]) / (DY * DY)
+            )
+
+    u_new = val * np.ones(u_local.shape)
+
 
     return u_new
 
 
-def worker(rank, n_processes, result, recv_queues, output_lock):
+def worker(rank, n_processes, result, recv_queues):
     """
     Worker function for parallel computation.
     """
@@ -67,34 +94,33 @@ def worker(rank, n_processes, result, recv_queues, output_lock):
 
     for step in range(0, STEPS):
 
+        # Update the shared array with the current result
+        result[start_idx:start_idx + local_nx, :] = u_local
+        # Output current state
+        if step % OUTPUT_INTERVAL == 0:
+            print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
+            #if rank == 0:
+            #    write_output(result, step)
+
         # Send boundary values to neighboring processes
         if recv_top is not None:
-           #recv_top.put(u_local[0, :])
-           recv_top.put(rank*np.ones((local_ny)))
+           recv_top.put(u_local[0, :])
         if recv_bottom is not None:
-           #recv_bottom.put(u_local[-1, :])
-           recv_bottom.put(rank*np.ones((local_ny)))
+           recv_bottom.put(u_local[-1, :])
 
         # Receive boundary values from neighboring processes
         top, bottom = None, None
         if recv_top is not None:
            top = recv_top.get()
-           u_local[0, :] = top
+           #print(f"Rank {rank}: Received top boundary: {top}")
+           u_local[-1, :] = top
+
         if recv_bottom is not None:
            bottom = recv_bottom.get()
-           u_local[-1, :] = bottom
+           #print(f"Rank {rank}: Received bottom boundary: {bottom}")
+           u_local[0, :] = bottom
 
         u_local = update(u_local, top, bottom, rank)
-
-        # Output current state
-        if step % OUTPUT_INTERVAL == 0:
-            with output_lock:
-                print(f"Step {step}, rank {rank}/{n_processes}, size {u_local.size}")
-                # Update the shared array with the current result
-                result[start_idx:start_idx + local_nx, :] = u_local
-                if rank == 0:
-                    write_output(result, step)
-
 
     # Update the shared array with the final result
     result[start_idx:start_idx + local_nx, :] = u_local
@@ -122,9 +148,8 @@ def main():
     result = np.frombuffer(shared_array_base.get_obj(), dtype=np.float64).reshape((NX, NY))
 
     processes = []
-    output_lock = mp.Lock()
     for rank in range(n_processes):
-        p = mp.Process(target=worker, args=(rank, n_processes, result, recv_queues, output_lock))
+        p = mp.Process(target=worker, args=(rank, n_processes, result, recv_queues))
         processes.append(p)
         p.start()
 
