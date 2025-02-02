@@ -3,10 +3,10 @@ import numpy as np
 import time
 
 
-
 def evaluate(a,b):
     try:
-        c = int(input(f"{a} + {b} = "))
+        s = "+" if b > 0 else "-"
+        c = int(input(f"{a} {s} {abs(b)} = "))
         if(c == a+b):
             return True
         else:
@@ -28,8 +28,9 @@ def print_message(counter_r, counter_f, counter_t):
 
 
 def main_loop(n_rep = 30):
-    a_arr = np.random.choice(range(1,101), n_rep)
-    b_arr = np.random.choice(range(1,101), n_rep)
+    c_arr = np.random.choice(range(0,101), n_rep)
+    a_arr = np.random.choice(range(0,101), n_rep)
+    b_arr = c_arr - a_arr
     counter_r = 0
     counter_f = 0
     counter_t = 0
